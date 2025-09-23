@@ -1,0 +1,9 @@
+# Ignorar todos los archivos .env
+*.env
+.env.*
+
+# Ignorar la carpeta db
+db/
+
+# Ignorar la carpeta de certificados
+certs/

@@ -1,0 +1,160 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ===== Tokens ===== */
+:root{
+  --color-primary:#E53935;
+  --color-primary-hover:#C62828;
+
+  --color-background:#0b0b0d; 
+  --color-foreground:#E5E7EB;
+  --color-panel:#121216;
+  --color-muted:#9CA3AF;
+  --color-border:#1F2937;
+
+  --shadow-soft:0 10px 24px rgba(0,0,0,.18);
+  --shadow-strong:0 24px 44px rgba(0,0,0,.28);
+}
+
+/* ===== Base ===== */
+@layer base{
+  html,body,#root{ height:100%; }
+  body{
+    background: var(--color-background);
+    color: var(--color-foreground);
+    font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial;
+  }
+}
+
+/* ===== Helpers ===== */
+@layer utilities{
+  .text-foreground{ color: var(--color-foreground); }
+  .text-muted{ color: var(--color-muted); }
+
+  .anim-page{ animation: pageIn .45s cubic-bezier(.16,1,.3,1) both; }
+  @keyframes pageIn{ from{opacity:0; transform: translateY(10px) scale(.995)} to{opacity:1; transform:none} }
+
+  .has-sheen{ position:relative; overflow:hidden; }
+  .has-sheen::after{
+    content:""; position:absolute; inset:-200% -50% auto -50%;
+    transform: rotate(12deg);
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,.18), transparent);
+    opacity:0; transition: opacity .25s ease, transform .8s ease;
+    pointer-events:none;
+  }
+  .has-sheen:hover::after{ opacity:.85; transform: rotate(12deg) translateX(60%); }
+
+  .pressable{ transition: transform .08s ease; }
+  .pressable:active{ transform: scale(.98); }
+}
+
+/* ===== Fondo de login ===== */
+@layer components {
+  .login-bg{
+    position: relative;
+    background:
+      radial-gradient(1200px 600px at -10% -10%, rgba(229,57,53,.16), transparent 60%),
+      radial-gradient(1000px 520px at 120% 120%, rgba(229,57,53,.10), transparent 62%),
+      var(--wall) center/cover no-repeat,
+      var(--color-background);
+  }
+  .login-vignette{
+    position:absolute; inset:0; pointer-events:none;
+    background: linear-gradient(180deg, rgba(0,0,0,.20), rgba(0,0,0,.14));
+  }
+
+
+  /* Tarjeta */
+  .auth-card{
+    border: 1px solid var(--color-border);
+    background: linear-gradient(180deg, rgba(18,18,22,.98), rgba(18,18,22,.92));
+    border-radius: 18px;
+    padding: 22px;
+    box-shadow: 0 20px 40px rgba(0,0,0,.35);
+  }
+
+  /* Campos */
+  .label{ display:block; font-size: 12px; margin-bottom:.4rem; color: var(--color-muted); }
+  .input-wrap{ position:relative; display:flex; align-items:center; }
+  .input{
+    width: 100%;
+    border: 1px solid var(--color-border);
+    background: #0f1115;
+    color: var(--color-foreground);
+    border-radius: 12px;
+    padding: 10px 12px 10px 38px;
+    outline: none;
+    transition: box-shadow .15s ease, border-color .15s ease, background-color .2s ease;
+  }
+  .input:focus{
+    border-color: color-mix(in oklab, var(--color-primary) 65%, var(--color-border));
+    box-shadow: 0 0 0 4px color-mix(in oklab, var(--color-primary) 18%, transparent);
+  }
+  .input-wrap.has-error .input{
+    border-color: #ef4444;
+    box-shadow: 0 0 0 4px rgba(239,68,68,.18);
+  }
+  .leading-ico{ position:absolute; left:10px; color: var(--color-muted); }
+
+  .help{ margin-top: .4rem; font-size: 12px; }
+  .help.is-muted{ color: var(--color-muted); }
+  .help.is-error{ color: #ef4444; }
+
+  /* Botón primario */
+  .btn{
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2;
+    color:#fff;
+    background: linear-gradient(180deg, var(--color-primary), var(--color-primary-hover));
+    box-shadow: 0 14px 32px rgba(229,57,53,.35);
+    transition: transform .12s ease, filter .15s ease;
+  }
+  .btn:hover{ transform: translateY(-1px); filter: brightness(1.03); }
+  .btn.is-loading{ opacity:.85; cursor: wait; }
+  .spinner{ width:1rem; height:1rem; border-radius:999px; border:2px solid rgba(255,255,255,.35); border-top-color:#fff; animation:spin .8s linear infinite; }
+  @keyframes spin{ to { transform: rotate(360deg); } }
+
+  /* Chip logo */
+  .k-mark{
+    width:48px; height:48px; border-radius: 12px; display:grid; place-items:center;
+    background: linear-gradient(180deg, rgba(229,57,53,.25), rgba(229,57,53,.06));
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 8px 24px rgba(0,0,0,.25);
+  }
+
+  /* OK banner */
+  .notice{ border-radius: 12px; padding: .6rem .8rem; font-size: 14px; }
+  .notice-ok{
+    border: 1px solid color-mix(in oklab, var(--color-primary) 48%, var(--color-border));
+    background: linear-gradient(180deg, rgba(34,197,94,.12), rgba(34,197,94,.06));
+    color: #22c55e;
+  }
+
+  /* Animación de éxito: cortina Kaizen */
+  .login-success .auth-card{ animation: cardOut .45s ease-in forwards; }
+  @keyframes cardOut{ to{ transform: scale(.96) translateY(4px); filter: blur(6px); opacity: 0; } }
+
+  .success-overlay{ position: fixed; inset: 0; z-index: 70; pointer-events: none; }
+  .kz-curtain-shape{
+    position:absolute; right:-20vmax; top:-20vmax;
+    width:180vmax; height:180vmax; border-radius:50%;
+    background: radial-gradient(120vmax 90vmax at 70% 35%, #e11d2a, #b91c1c);
+    transform-origin:100% 0%;
+    transform: translate(50%, -50%) scale(0.001);
+    box-shadow: 0 0 60px rgba(225,29,42,.35), inset 0 -20px 60px rgba(0,0,0,.25);
+    animation: kzCurtainIn .54s cubic-bezier(.2,.9,.35,1) forwards;
+  }
+  @keyframes kzCurtainIn { from{ transform: translate(50%,-50%) scale(0.001) } to{ transform: translate(50%,-50%) scale(.72) } }
+
+  /* Marco fijo para el banner: NO empuja el formulario */
+  .banner-frame{
+    width: min(760px, 92vw);
+    aspect-ratio: 16 / 9;
+    max-height: 420px;
+    display: grid; place-items: center;
+    overflow: hidden;
+    border-radius: 16px;
+    background: #0f1318;
+    box-shadow: 0 18px 40px rgba(0,0,0,.28);
+  }
+}
+

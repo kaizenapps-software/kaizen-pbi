@@ -1,0 +1,16 @@
+{
+  "name": "kaizen-pbi",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev:all": "concurrently -n AUTH,EDGE,WEB -c green,yellow,cyan \"npm run dev:auth\" \"npm run dev:edge\" \"npm run dev:web\"",
+    "dev:services": "concurrently -n AUTH,EDGE -c green,yellow \"npm run dev:auth\" \"npm run dev:edge\"",
+    "dev:auth": "npm --prefix services/auth-service run dev",
+    "dev:edge": "npm --prefix services/edge-api run dev",
+    "dev:web": "npm --prefix frontend run dev",
+    "bootstrap": "npm --prefix services/auth-service ci --no-audit --no-fund && npm --prefix services/edge-api ci --no-audit --no-fund && npm --prefix frontend ci --no-audit --no-fund"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
