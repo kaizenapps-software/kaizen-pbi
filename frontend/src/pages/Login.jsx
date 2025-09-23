@@ -68,11 +68,11 @@ export default function LoginPage() {
 
     setLoading(true);
     try {
-      const r = await fetch("/auth/license/login", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ license: code }),
+      const r = await fetch(apiUrl("/auth/license/login"), {
+      method: "POST",
+      headers: jsonHeaders,
+      credentials: "include",             
+      body: JSON.stringify({ license: code }),
       });
 
     if (r.status === 204) {

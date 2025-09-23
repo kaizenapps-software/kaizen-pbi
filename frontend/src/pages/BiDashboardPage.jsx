@@ -8,7 +8,6 @@ export default function BiDashboardPage() {
 
   useEffect(() => { initTheme() }, [])
 
-  // Altura = viewport disponible (sin topbar)
   useEffect(() => {
     const recalc = () => {
       if (!wrapRef.current) return
