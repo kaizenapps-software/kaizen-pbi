@@ -4,6 +4,7 @@ import { initTheme } from "../lib/theme";
 import bgCrimson from "../assets/img/Kaizen Crimson 1.003000.png";
 import logoK from "../assets/img/Icon App.png";
 import Banner from "../components/Banner";
+import { apiUrl, jsonHeaders } from "../lib/api";
 
 const ERRORS_ES = {
   "invalid-license": "Licencia inválida.",
@@ -31,7 +32,6 @@ export default function LoginPage() {
   useEffect(() => {
     initTheme();
     inputRef.current?.focus();
-    // limpia restos de sesiones viejas si llegas al login
     try {
       sessionStorage.removeItem(AUTH_KEY);
       localStorage.removeItem(AUTH_KEY);
@@ -71,23 +71,21 @@ export default function LoginPage() {
       const r = await fetch(apiUrl("/auth/license/login"), {
       method: "POST",
       headers: jsonHeaders,
-      credentials: "include",             
+      credentials: "include",
       body: JSON.stringify({ license: code }),
       });
 
-    if (r.status === 204) {
+    if (r.ok) {
       const client = (code.match(/^[A-Z]{2,6}(?=-)/) || [null])[0];
       const exp = Date.now() + 8 * 60 * 60 * 1000;
-      try {
-        sessionStorage.setItem("kz-auth", JSON.stringify({ license: code, client, exp }));
-        localStorage.removeItem("kz-auth");
+    try {
+      sessionStorage.setItem("kz-auth", JSON.stringify({ license: code, client, exp }));
+      localStorage.removeItem("kz-auth");
       } catch {}
-
-      setBanner("¡Bienvenido! Redirigiendo…");
-      setSuccess(true);
-      navigate("/dashboard", { replace: true });
+          setSuccess(true);
+          navigate("/dashboard", { replace: true });
       return;
-    }
+  }
 
     let err = "server-error";
     try {

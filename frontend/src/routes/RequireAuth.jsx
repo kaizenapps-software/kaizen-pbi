@@ -1,5 +1,6 @@
 import { Navigate, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useMemo } from "react";
+import { apiUrl } from "../lib/api";
 
 const KEY = "kz-auth";
 
@@ -10,7 +11,7 @@ function readAuth() {
     if (!raw) return null;
     const a = JSON.parse(raw);
     if (!a?.license) return null;
-    if (a.exp && Date.now() > a.exp) return null; // expirado
+    if (a.exp && Date.now() > a.exp) return null; 
     return a;
   } catch {
     return null;
@@ -36,10 +37,8 @@ export default function RequireAuth({ children }) {
   const loc = useLocation();
   const nav = useNavigate();
 
-  // Revalúa auth en cada navegación
   const auth = useMemo(readAuth, [loc.key]);
 
-  // Revalidación periódica y al volver a foco
   useEffect(() => {
     let disposed = false;
 
@@ -47,21 +46,14 @@ export default function RequireAuth({ children }) {
       const a = readAuth();
       if (!a) return;
 
-      // ping cuando falte <1min para expirar o si no tenemos exp
       const shouldPing = !a.exp || a.exp - Date.now() < 60_000;
 
       if (!shouldPing) return;
 
       try {
-        const r = await fetch("/auth/license/validate", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ license: a.license }),
-        });
+         const r = await fetch(apiUrl("/auth/me"), { credentials: "include" });
+        if (!r.ok) throw new Error("no-session");
 
-        if (!r.ok) throw new Error("invalid");
-
-        // si el backend devuelve exp, actualízala (timestamp ms)
         const j = await r.json().catch(() => ({}));
         if (j?.exp && Number.isFinite(+j.exp)) {
           writeAuth({ ...a, exp: +j.exp });
