@@ -1,9 +1,32 @@
-# Ignorar todos los archivos .env
-*.env
-.env.*
+# --- Dependencias
+**/node_modules/
+**/.pnp
+**/.cache/
+**/.turbo/
 
-# Ignorar la carpeta db
-db/
+# --- Builds/artefactos
+**/dist/
+**/build/
+**/.next/
+**/coverage/
 
-# Ignorar la carpeta de certificados
-certs/
+# --- Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# --- Entornos
+**/.env
+**/.env.*
+!.env.example
+
+# --- SO/IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# --- Certificados (no subir privados)
+services/auth-service/certs/*
+!services/auth-service/certs/README.md
