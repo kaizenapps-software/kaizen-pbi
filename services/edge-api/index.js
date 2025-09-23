@@ -27,16 +27,15 @@ app.disable("x-powered-by");
 app.use(helmet());
 app.use(morgan("tiny"));
 
-const ORIGINS = (CORS_ORIGIN || "")
-  .split(",")
+const allowList = (CORS_ORIGIN || '')
+  .split(',')
   .map(s => s.trim())
   .filter(Boolean);
 
 app.use(cors({
   origin(origin, cb) {
-    if (!origin) return cb(null, true);
-    if (ORIGINS.includes(origin)) return cb(null, true);
-    return cb(new Error("Not allowed by CORS"));
+    if (!origin || allowList.includes(origin)) return cb(null, true);
+    return cb(new Error('CORS blocked'), false);
   },
   credentials: true,
 }));
@@ -52,31 +51,27 @@ const limiter = rateLimit({
   max: 20,
   standardHeaders: true,
   legacyHeaders: false,
-  validate: { trustProxy: false },      
-  keyGenerator: (req) => req.ip,
 });
-app.use("/auth/", limiter);
+app.use('/auth', limiter);
 
 const USE_HOST_PREFIX =
   NODE_ENV === "production" &&
   JWT_COOKIE_SECURE === "true" &&
-  !JWT_COOKIE_DOMAIN; // __Host-* sólo si NO hay Domain
+  !JWT_COOKIE_DOMAIN; 
 
-const NAME_AT = USE_HOST_PREFIX ? "__Host-kaizen_at" : "kaizen_at";
-const NAME_RT = USE_HOST_PREFIX ? "__Host-kaizen_rt" : "kaizen_rt";
-
-const cookieOpts = (ttlSec) => ({
+const cookieBase = (ttlSec) => ({
   httpOnly: true,
-  secure: JWT_COOKIE_SECURE === "true",
-  sameSite: "none",                          // <-- cross-site (front y api en hosts distintos)
-  path: "/",
+  secure: JWT_COOKIE_SECURE === 'true',        
+  sameSite: allowList.length ? 'none' : 'strict',
+  path: '/',
   ...(JWT_COOKIE_DOMAIN ? { domain: JWT_COOKIE_DOMAIN } : {}),
   maxAge: ttlSec * 1000,
 });
 const setCookie = (res, name, value, ttlSec) =>
-  res.cookie(name, value, cookieOpts(ttlSec));
-const clearCookie = (res, name) =>
-  res.clearCookie(name, cookieOpts());
+  res.cookie(name, value, cookieBase(ttlSec));
+
+const NAME_AT = 'kaizen_at';
+const NAME_RT = 'kaizen_rt';
 
 const sign = (body) =>
   crypto.createHmac("sha256", EDGE_HMAC_SECRET).update(JSON.stringify(body)).digest("hex");
