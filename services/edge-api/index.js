@@ -21,7 +21,6 @@ const {
 
 const app = express()
 
-// Evita el error de express-rate-limit (no uses "true" sin criterio)
 app.set("trust proxy", "loopback")
 
 app.disable("x-powered-by")
@@ -33,7 +32,6 @@ app.use(cookieParser())
 
 console.log("[edge] AUTH_SERVICE_URL =", AUTH_SERVICE_URL)
 
-// Rate limit solo en /auth
 const limiter = rateLimit({
   windowMs: 60_000,
   max: 20,
@@ -58,7 +56,6 @@ const cookieOpts = ttlSec => ({
 })
 const setCookie = (res, name, value, ttlSec) => res.cookie(name, value, cookieOpts(ttlSec))
 
-/** Login: robusto ante respuestas HTML del auth */
 app.post("/auth/license/login", async (req, res) => {
   try {
     const clientIp = (req.headers["x-forwarded-for"] || req.ip || "").toString().split(",")[0].trim()
@@ -92,7 +89,6 @@ app.post("/auth/license/login", async (req, res) => {
   }
 })
 
-/** Estado de sesión */
 app.get("/auth/me", async (req, res) => {
   const at = req.cookies?.[NAME_AT]
   const rt = req.cookies?.[NAME_RT]
