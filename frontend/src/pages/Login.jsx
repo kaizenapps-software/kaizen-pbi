@@ -71,42 +71,36 @@ export default function LoginPage() {
       const r = await fetch("/auth/license/login", {
         method: "POST",
         headers: { "content-type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ license: code }),
       });
 
-      if (r.status === 204 || r.ok) {
-        // exp por defecto; si tu backend devuelve { exp: <ts_ms> } úsalo
-        let exp = Date.now() + DEFAULT_TTL_MS;
-        try {
-          const j = await r.json();
-          if (j?.exp && Number.isFinite(+j.exp)) exp = +j.exp;
-        } catch {}
+    if (r.status === 204) {
+      const client = (code.match(/^[A-Z]{2,6}(?=-)/) || [null])[0];
+      const exp = Date.now() + 8 * 60 * 60 * 1000;
+      try {
+        sessionStorage.setItem("kz-auth", JSON.stringify({ license: code, client, exp }));
+        localStorage.removeItem("kz-auth");
+      } catch {}
 
-        const client = (code.match(/^[A-Z]{2,6}(?=-)/) || [null])[0];
-        const payload = { license: code, client, exp };
-
-        try {
-          sessionStorage.setItem(AUTH_KEY, JSON.stringify(payload));
-          localStorage.removeItem(AUTH_KEY);
-        } catch {}
-
-        setBanner("¡Bienvenido! Redirigiendo…");
-        setSuccess(true);
-
-        // quita /login del historial
-        navigate("/dashboard", { replace: true });
-        return;
-      }
-
-      let err = "server-error";
-      try { const j = await r.json(); if (j?.error) err = j.error; } catch {}
-      setErrorKey(err);
-    } catch {
-      setErrorKey("server-error");
-    } finally {
-      setLoading(false);
+      setBanner("¡Bienvenido! Redirigiendo…");
+      setSuccess(true);
+      navigate("/dashboard", { replace: true });
+      return;
     }
+
+    let err = "server-error";
+    try {
+      const j = await r.json();
+      if (j?.error) err = j.error;
+    } catch {}
+    setErrorKey(err);
+  } catch {
+    setErrorKey("server-error");
+  } finally {
+    setLoading(false);
   }
+}
 
   return (
     <div
