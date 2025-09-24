@@ -2,8 +2,8 @@ import { NavLink } from "react-router-dom"
 import { LayoutDashboard, BarChart3 } from "lucide-react"
 import { LogOut } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import wordWhite from "../assets/img/Kaizen Tittle W.png"
-import logo from "../assets/img/Logo B.jpg"
+import wordWhite from "../assets/img/kaizen-title-w.png"
+import logo from "../assets/img/logo-b.jpg"
 
 const nav = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
