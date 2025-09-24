@@ -1,8 +1,9 @@
-import React from "react"
 import { NavLink } from "react-router-dom"
 import { LayoutDashboard, BarChart3 } from "lucide-react"
 import { LogOut } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import wordWhite from "../assets/img/Kaizen Tittle W.png"
+import logo from "../assets/img/Logo B.jpg"
 
 const nav = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -35,8 +36,8 @@ export default function Sidebar() {
   return (
     <aside className="sidebar">
       <div className="sidebar-brand">
-        <img src="/src/assets/img/favicon.png" alt="Kaizen" className="h-7" />
-        <img src="/src/assets/img/Kaizen Tittle W.png" alt="Kaizen" className="h-4 opacity-80 hidden md:block" />
+        <img src={logo} alt="Kaizen" className="h-7" />
+        <img src={wordWhite} alt="Kaizen" className="h-4 opacity-80 hidden md:block" />
       </div>
       <nav className="mt-2">
         {nav.map(({ to, label, icon: Icon }) => (
