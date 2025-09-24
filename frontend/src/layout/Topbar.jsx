@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import { initTheme, toggleTheme } from "../lib/theme";
-import brand from "../ui/Brand";  
 import userAvatar from "../assets/img/Icon App.png";
 
 export default function Topbar() {
