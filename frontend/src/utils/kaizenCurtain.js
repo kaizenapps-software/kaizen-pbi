@@ -1,4 +1,3 @@
-// frontend/src/lib/curtain.js
 let node = null;
 
 export function startCurtain({ holdAt = 0.72 } = {}) {

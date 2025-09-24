@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { initTheme, toggleTheme } from "../lib/theme";
+import brand from "../ui/Brand";  
+import userAvatar from "../assets/img/Icon App.png";
 
 export default function Topbar() {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -74,7 +76,7 @@ export default function Topbar() {
           </span>
         </button>
 
-        {/* descargar */}
+        {/* plataforma */}
         <button onClick={goPowerBi} className="btn has-sheen pressable" title="Ir a la plataforma web">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <circle cx="12" cy="12" r="10" />
@@ -91,7 +93,7 @@ export default function Topbar() {
             aria-haspopup="menu"
             aria-expanded={menuOpen}
           >
-            <img src="/src/assets/img/Icon App.png" alt="Usuario" className="avatar" />
+            <img src={userAvatar} alt="Usuario" className="avatar" />
           </button>
 
           {menuOpen && (

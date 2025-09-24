@@ -1,4 +1,3 @@
-// frontend/src/lib/curtain.js
 let node = null;
 let killTimer = null;
 let prevBodyOverflow = null;
@@ -32,7 +31,6 @@ export function startCurtain({ holdAt = 0.72, safetyMs = 6000 } = {}) {
   if (typeof document === "undefined") return;
   if (node) return;
 
-  // Bloquea scroll del body mientras la cortina está activa
   prevBodyOverflow = document.body.style.overflow || "";
   document.body.style.overflow = "hidden";
   document.body.classList.add("kz-curtain-active");
@@ -42,10 +40,7 @@ export function startCurtain({ holdAt = 0.72, safetyMs = 6000 } = {}) {
   node.innerHTML = '<div class="kz-curtain__shape"></div>';
   document.body.appendChild(node);
 
-  // entra
   requestAnimationFrame(() => node && node.classList.add("in"));
-
-  // Safety: si por algo no hacemos finish, limpiamos en X ms
   clearTimeout(killTimer);
   killTimer = setTimeout(() => finishCurtain(), safetyMs);
 }
@@ -55,7 +50,6 @@ export function finishCurtain() {
   killTimer = null;
 
   if (!node) {
-    // Si existe en el DOM por alguna razón
     const stray = document.querySelector(".kz-curtain");
     if (stray) {
       stray.classList.remove("in");
@@ -81,7 +75,6 @@ export function finishCurtain() {
   removeNode(false);
 }
 
-// Útil al montar Login para asegurar que no quede nada pendiente
 export function killCurtainImmediate() {
   clearTimeout(killTimer);
   killTimer = null;
@@ -95,7 +88,6 @@ export function killCurtainImmediate() {
       document.body.style.overflow = prevBodyOverflow;
       prevBodyOverflow = null;
     } else {
-      // fallback
       document.body.style.overflow = "";
     }
   }

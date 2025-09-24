@@ -19,8 +19,8 @@ const {
   MYSQL_USER,
   MYSQL_PASSWORD,
   MYSQL_DB,
-  MYSQL_SSL_CA_PATH,              // opcional: ruta a server-ca.pem
-  MYSQL_SSL_CA_BASE64,            // opcional: CA en base64
+  MYSQL_SSL_CA_PATH,             
+  MYSQL_SSL_CA_BASE64,            
   MYSQL_SSL_REJECT_UNAUTHORIZED = "true",
   AUTH_PEPPER = "",
   JWT_SECRET = "",
@@ -29,18 +29,17 @@ const {
   EDGE_HMAC_SECRET = "",
 } = process.env
 
-/** Construye config SSL si se provee CA (por ruta o base64) */
 function buildSslConfig() {
   const cfg = {
     minVersion: "TLSv1.2",
     rejectUnauthorized: MYSQL_SSL_REJECT_UNAUTHORIZED === "true",
   }
-  // CA embebida en base64 (string PEM)
+
   if ((MYSQL_SSL_CA_BASE64 ?? "").trim()) {
     cfg.ca = Buffer.from(MYSQL_SSL_CA_BASE64.trim(), "base64").toString("utf8")
     return cfg
   }
-  // CA desde disco
+
   const p = (MYSQL_SSL_CA_PATH ?? "./certs/server-ca.pem").trim()
   const abs = path.resolve(p)
   if (fs.existsSync(abs)) {
@@ -74,7 +73,7 @@ pool.query("SELECT 1").then(() => {
   })
 })
 
-/** Utils */
+
 const normalize = s => s.toString().trim().toUpperCase().replace(/[^A-Z0-9]/g, "")
 const sha256hex = s => crypto.createHash("sha256").update(s).digest("hex")
 const safeEqHex = (a, b) => {

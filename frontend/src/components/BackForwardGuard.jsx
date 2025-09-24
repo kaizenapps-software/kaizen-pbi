@@ -1,7 +1,6 @@
 import { useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
-/** Neutraliza atrás/adelante mientras `enabled` sea true */
 export default function BackForwardGuard({ enabled = true }) {
   const navigate = useNavigate();
   const loc = useLocation();

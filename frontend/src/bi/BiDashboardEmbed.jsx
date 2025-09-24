@@ -5,7 +5,7 @@ export default function BiDashboardEmbed({ className="", style={} }){
     ""
 
   if(!base) {
-    return <div className="card p-6 text-sm text-muted">Configura VITE_PBI_PUBLISH_TO_WEB_URL (o SECURE) en tu .env</div>
+    return <div className="card p-6 text-sm text-muted">Ha ocurrido un error</div>
   }
 
   return (

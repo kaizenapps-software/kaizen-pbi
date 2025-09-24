@@ -44,15 +44,14 @@ export default function Banner() {
     startX.current = null;
   };
 
-  // tilt 3D suave con el mouse
   const onMove = (e) => {
     const el = boxRef.current;
     if (!el) return;
     const r = el.getBoundingClientRect();
-    const x = (e.clientX - r.left) / r.width;   // 0..1
-    const y = (e.clientY - r.top) / r.height;   // 0..1
-    const ry = (x - 0.5) * 8;                    // rotateY
-    const rx = (0.5 - y) * 6;                    // rotateX
+    const x = (e.clientX - r.left) / r.width;   
+    const y = (e.clientY - r.top) / r.height;   
+    const ry = (x - 0.5) * 8;                    
+    const rx = (0.5 - y) * 6;                    
     setTilt({ rx, ry });
   };
   const onLeave = () => setTilt({ rx: 0, ry: 0 });
@@ -70,7 +69,7 @@ export default function Banner() {
         onMouseMove={onMove}
       >
         <img
-          key={slides[current].image}               // fuerza re-mount para animación
+          key={slides[current].image}               
           src={slides[current].image}
           alt={slides[current].title}
           className="banner__image fade-in"

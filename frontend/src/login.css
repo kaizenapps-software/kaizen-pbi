@@ -145,7 +145,6 @@
   }
   @keyframes kzCurtainIn { from{ transform: translate(50%,-50%) scale(0.001) } to{ transform: translate(50%,-50%) scale(.72) } }
 
-  /* Marco fijo para el banner: NO empuja el formulario */
   .banner-frame{
     width: min(760px, 92vw);
     aspect-ratio: 16 / 9;

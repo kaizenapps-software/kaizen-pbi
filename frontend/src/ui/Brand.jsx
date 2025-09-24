@@ -1,12 +1,5 @@
-import React from "react"
 import { brand } from "../branding/assets"
 
-/**
- * Brand
- * - showMark: muestra el isotipo a la izquierda
- * - wordmarkHeight: alto del logotipo tipográfico
- * - markSize: alto/ancho del isotipo
- */
 export default function Brand({
   showMark = false,
   wordmarkHeight = 28,

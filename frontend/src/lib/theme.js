@@ -1,6 +1,5 @@
 const KEY = "kaizen.dark";
 
-/** Aplica el tema guardado o el de sistema en el primer render */
 export function initTheme() {
   try {
     const saved = localStorage.getItem(KEY);
@@ -10,7 +9,6 @@ export function initTheme() {
   } catch {}
 }
 
-/** Cambia el tema con una animación corta */
 export function toggleTheme() {
   const html = document.documentElement;
   const next = !html.classList.contains("dark");

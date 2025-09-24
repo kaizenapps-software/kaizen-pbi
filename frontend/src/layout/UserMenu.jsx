@@ -8,7 +8,6 @@ export default function UserMenu({ onClose }) {
 
   return (
     <>
-      {/* backdrop para cerrar si se hace click fuera */}
       <div className="fixed inset-0 z-[95]" onClick={onClose} />
       <div className="user-menu">
         <Link to="/profile" onClick={onClose} className="flex items-center gap-2">

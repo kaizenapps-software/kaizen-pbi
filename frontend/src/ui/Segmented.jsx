@@ -1,13 +1,3 @@
-import React from "react"
-
-/**
- * Segmented control accesible (usa aria-pressed).
- * props:
- *  - items: [{ label, value }]
- *  - value: string
- *  - onChange: (value) => void
- *  - className?: string
- */
 export default function Segmented({ items = [], value, onChange, className = "" }) {
   return (
     <div
