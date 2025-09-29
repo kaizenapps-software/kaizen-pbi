@@ -18,7 +18,7 @@ const ERRORS_ES = {
 };
 
 const AUTH_KEY = "kz-auth";
-const DEFAULT_TTL_MS = 8 * 60 * 60 * 1000; // 8h
+const DEFAULT_TTL_MS = 8 * 60 * 60 * 1000;
 
 export default function LoginPage() {
   const [license, setLicense] = useState("");
