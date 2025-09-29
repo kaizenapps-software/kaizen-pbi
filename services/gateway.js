@@ -4,6 +4,11 @@ import helmet from "helmet"
 import { createProxyMiddleware } from "http-proxy-middleware"
 import { spawn } from "child_process"
 import kill from "tree-kill"
+import path from "path"
+import { fileURLToPath } from "url"
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 const PORT = process.env.PORT || 3000
 const AUTH_PORT = process.env.AUTH_PORT || 4001
@@ -19,8 +24,8 @@ function spawnSvc(name, cmd, args, env = {}, cwd) {
   return child
 }
 
-spawnSvc("auth-service", "node", ["index.js"], { PORT: AUTH_PORT, HOST: "127.0.0.1" }, "./auth-service")
-spawnSvc("edge-api", "node", ["index.js"], { PORT: EDGE_PORT, HOST: "127.0.0.1" }, "./edge-api")
+spawnSvc("auth-service", "node", ["index.js"], { PORT: AUTH_PORT, HOST: "127.0.0.1" }, path.join(__dirname, "auth-service"))
+spawnSvc("edge-api", "node", ["index.js"], { PORT: EDGE_PORT, HOST: "127.0.0.1" }, path.join(__dirname, "edge-api"))
 
 const app = express()
 app.disable("x-powered-by")
@@ -32,12 +37,20 @@ app.get("/healthz", (_req, res) => res.json({ ok: true }))
 
 app.use("/auth", createProxyMiddleware({
   target: `http://127.0.0.1:${AUTH_PORT}`,
-  changeOrigin: true
+  changeOrigin: true,
+  xfwd: true
+}))
+
+app.use("/reports", createProxyMiddleware({
+  target: `http://127.0.0.1:${AUTH_PORT}`,
+  changeOrigin: true,
+  xfwd: true
 }))
 
 app.use("/api", createProxyMiddleware({
   target: `http://127.0.0.1:${EDGE_PORT}`,
-  changeOrigin: true
+  changeOrigin: true,
+  xfwd: true
 }))
 
 app.use((_req, res) => res.status(404).json({ error: "not-found" }))

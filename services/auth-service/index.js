@@ -2,7 +2,6 @@ import 'dotenv/config'
 import express from 'express'
 import helmet from 'helmet'
 import cors from 'cors'
-import morgan from 'morgan'
 import crypto from 'crypto'
 import { createPool } from 'mysql2/promise'
 
@@ -11,12 +10,8 @@ app.disable('x-powered-by')
 app.use(helmet({ contentSecurityPolicy: false }))
 app.use(cors({ origin: true, credentials: true }))
 app.use(express.json({ limit: '1mb' }))
-app.use(morgan('dev'))
 
-const {
-  DB_HOST, DB_PORT, DB_USER, DB_PASS, DB_NAME,
-  PEPPER
-} = process.env
+const { DB_HOST, DB_PORT, DB_USER, DB_PASS, DB_NAME, PEPPER } = process.env
 
 const pool = createPool({
   host: DB_HOST,
@@ -28,8 +23,8 @@ const pool = createPool({
   namedPlaceholders: true
 })
 
-function sha256HexPeppered(value) {
-  return crypto.createHash('sha256').update((PEPPER || '') + value).digest('hex')
+function sha256HexPeppered(v) {
+  return crypto.createHash('sha256').update((PEPPER || '') + v).digest('hex')
 }
 
 function extractPrefix(license) {
@@ -46,12 +41,9 @@ async function loginHandler(req, res) {
   try {
     const { license } = req.body || {}
     if (!license) return res.status(400).json({ status: 'missing-license', error: 'missing-license' })
-
     const prefix = extractPrefix(license)
     if (!prefix) return res.status(400).json({ status: 'invalid-license', error: 'invalid-license' })
-
     const licenseHash = sha256HexPeppered(license).toLowerCase()
-
     const conn = await pool.getConnection()
     try {
       const [rows] = await conn.query(
@@ -64,18 +56,11 @@ async function loginHandler(req, res) {
       )
       const found = rows?.[0]
       let status = 'mismatch_or_not_found'
-
       if (found && found.daClientPrefix === prefix) {
-        if (found.daStatus !== 'active') {
-          status = found.daStatus
-        } else if (found.isExpired) {
-          await conn.query('UPDATE daDashboard SET daStatus="expired" WHERE LicenseID=?', [found.LicenseID])
-          status = 'expired'
-        } else {
-          status = 'ok'
-        }
+        if (found.daStatus !== 'active') status = found.daStatus
+        else if (found.isExpired) { await conn.query('UPDATE daDashboard SET daStatus="expired" WHERE LicenseID=?', [found.LicenseID]); status = 'expired' }
+        else status = 'ok'
       }
-
       await conn.query(
         `INSERT INTO daLogin (loLicensePrefix, LicenseID, loStatus, loReason, loIpAddress, loUserAgent)
          VALUES (?, ?, ?, ?, ?, ?)`,
@@ -88,13 +73,12 @@ async function loginHandler(req, res) {
           (req.headers['user-agent'] || '').toString().slice(0,255)
         ]
       )
-
       if (status === 'ok') return res.json({ status: 'ok', prefix })
       return res.status(401).json({ status, error: status })
     } finally {
       conn.release()
     }
-  } catch (e) {
+  } catch {
     return res.status(500).json({ status: 'server-error', error: 'server-error' })
   }
 }
@@ -102,7 +86,7 @@ async function loginHandler(req, res) {
 app.get('/reports/home', async (req, res) => {
   try {
     const { prefix } = req.query
-    if (!prefix) return res.status(400).json({ status: 'invalid-prefix' })
+    if (!prefix) return res.status(400).json({ status: 'invalid-prefix', error: 'invalid-prefix' })
     const conn = await pool.getConnection()
     try {
       await conn.query('SET @o_status := NULL, @o_url := NULL, @o_code := NULL')
@@ -123,7 +107,7 @@ app.get('/reports/:reportCode', async (req, res) => {
   try {
     const { prefix } = req.query
     const { reportCode } = req.params
-    if (!prefix) return res.status(400).json({ status: 'invalid-prefix' })
+    if (!prefix) return res.status(400).json({ status: 'invalid-prefix', error: 'invalid-prefix' })
     const conn = await pool.getConnection()
     try {
       await conn.query('SET @o_status := NULL, @o_url := NULL')
@@ -141,6 +125,4 @@ app.get('/reports/:reportCode', async (req, res) => {
 })
 
 const port = process.env.PORT ? Number(process.env.PORT) : 4001
-app.listen(port, () => {
-  console.log(`auth-service listening on :${port}`)
-})
+app.listen(port, () => { console.log(`auth-service listening on :${port}`) })
