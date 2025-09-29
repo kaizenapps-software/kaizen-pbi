@@ -60,7 +60,7 @@ export default function LoginPage() {
 
   async function handleSubmit(e) {
     e.preventDefault();
-    setBanner(""); 
+    setBanner("");
     setErrorKey("");
 
     const code = (license || "").trim().toUpperCase();
@@ -69,41 +69,41 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const r = await fetch(apiUrl("/auth/login"), {
-      method: "POST",
-      headers: jsonHeaders,
-      credentials: "include",
-      body: JSON.stringify({ license: code }),
+        method: "POST",
+        headers: jsonHeaders,
+        credentials: "include",
+        body: JSON.stringify({ license: code }),
       });
 
-    if (r.ok) {
-      const j = await r.json().catch(() => null);
-      const client = j?.prefix || (code.match(/^[A-Z]{2,6}(?=-)/) || [null])[0];
-      const exp = Date.now() + 8 * 60 * 60 * 1000;
-    try {
-      sessionStorage.setItem("kz-auth", JSON.stringify({ license: code, client, exp }));
-      localStorage.removeItem("kz-auth");
-      } catch {}
-          setSuccess(true);
-          navigate("/dashboard", { replace: true });
-      return;
-  }
+      if (r.ok) {
+        const j = await r.json().catch(() => null);
+        const client = j?.prefix || (code.match(/^[A-Z]{2,6}(?=-)/) || [null])[0];
+        const exp = Date.now() + DEFAULT_TTL_MS;
+        try {
+          sessionStorage.setItem("kz-auth", JSON.stringify({ license: code, client, exp }));
+          localStorage.removeItem("kz-auth");
+        } catch {}
+        setSuccess(true);
+        navigate("/dashboard", { replace: true });
+        return;
+      }
 
-    let err = "server-error";
-    try {
-      const j = await r.json();
-      const s = j?.status || j?.error;
-      if (s === "expired") err = "license-expired";
-      else if (s === "revoked") err = "license-not-active";
-      else if (s === "mismatch_or_not_found") err = "invalid-license";
-      else if (typeof s === "string") err = s;
-    } catch {}
-    setErrorKey(err);
-  } catch {
-    setErrorKey("server-error");
-  } finally {
-    setLoading(false);
+      let err = "server-error";
+      try {
+        const j = await r.json();
+        const s = j?.status || j?.error;
+        if (s === "expired") err = "license-expired";
+        else if (s === "revoked") err = "license-not-active";
+        else if (s === "mismatch_or_not_found") err = "invalid-license";
+        else if (typeof s === "string") err = s;
+      } catch {}
+      setErrorKey(err);
+    } catch {
+      setErrorKey("server-error");
+    } finally {
+      setLoading(false);
+    }
   }
-}
 
   return (
     <div
