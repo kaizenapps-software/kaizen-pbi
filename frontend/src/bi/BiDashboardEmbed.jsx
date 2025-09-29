@@ -1,22 +1,35 @@
-export default function BiDashboardEmbed({ className="", style={} }){
-  const base =
-    (import.meta.env.VITE_PBI_PUBLISH_TO_WEB_URL ?? "").trim() ||
-    (import.meta.env.VITE_PBI_SECURE_EMBED_URL ?? "").trim() ||
-    ""
+import { useEffect, useState } from "react"
+import { apiFetchHome } from "../lib/api"
 
-  if(!base) {
-    return <div className="card p-6 text-sm text-muted">Ha ocurrido un error</div>
+export default function BiDashboardEmbed({ style }) {
+  const [url, setUrl] = useState("")
+  const [status, setStatus] = useState("idle")
+
+  useEffect(() => {
+    let active = true
+    const raw = sessionStorage.getItem("kz-auth")
+    let prefix = ""
+    try {
+      const obj = raw ? JSON.parse(raw) : null
+      prefix = obj?.client || ""
+    } catch {}
+    if (!prefix) { setStatus("no_active_license"); return }
+    setStatus("loading")
+    apiFetchHome(prefix).then(res => {
+      if (!active) return
+      if (res && res.status === "ok" && res.url) {
+        setUrl(res.url)
+        setStatus("ok")
+      } else {
+        setStatus(res?.status || "error")
+      }
+    }).catch(() => { if (active) setStatus("error") })
+    return () => { active = false }
+  }, [])
+
+  if (status !== "ok") {
+    return <div className="w-full h-[60vh] flex items-center justify-center text-sm">{status === "loading" ? "Cargando..." : "No fue posible cargar el reporte"}</div>
   }
 
-  return (
-    <div className={`embed-ambient w-full overflow-hidden rounded-2xl border border-border shadow-soft bg-panel ${className}`} style={style}>
-      <iframe
-        title="Power BI"
-        src={base}
-        className="w-full block relative z-0"
-        style={{ height: "100%", border: 0, background: "transparent" }}
-        allowFullScreen
-      />
-    </div>
-  )
+  return <iframe title="pbi" src={url} className="w-full h-full border-0" style={style} allowFullScreen />
 }
