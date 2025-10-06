@@ -61,9 +61,14 @@ async function loginHandler(req, res) {
   try {
     const { license } = req.body || {}
     if (!license) return res.status(400).json({ status: 'missing-license', error: 'missing-license' })
+
     const prefix = extractPrefix(license)
     if (!prefix) return res.status(400).json({ status: 'invalid-license', error: 'invalid-license' })
-    const licenseHash = sha256HexPeppered(license).toLowerCase()
+
+    // === Normalización para alinear con el SP (MAYÚSCULAS, con guiones) ===
+    const canon = String(license).trim().toUpperCase()
+    const licenseHash = sha256HexPeppered(canon).toLowerCase()
+
     const conn = await pool.getConnection()
     try {
       const [rows] = await conn.query(
@@ -76,11 +81,21 @@ async function loginHandler(req, res) {
       )
       const found = rows?.[0]
       let status = 'mismatch_or_not_found'
+
       if (found && found.daClientPrefix === prefix) {
         if (found.daStatus !== 'active') status = found.daStatus
-        else if (found.isExpired) { await conn.query('UPDATE daDashboard SET daStatus="expired" WHERE LicenseID=?', [found.LicenseID]); status = 'expired' }
-        else status = 'ok'
+        else if (Boolean(found.isExpired)) {
+          await conn.query('UPDATE daDashboard SET daStatus="expired" WHERE LicenseID=?', [found.LicenseID])
+          status = 'expired'
+        } else {
+          status = 'ok'
+        }
       }
+
+      const xff = (req.headers['x-forwarded-for'] || '').toString()
+      const ip = (xff.split(',')[0] || req.socket.remoteAddress || '').toString().slice(0, 45)
+      const ua = (req.headers['user-agent'] || '').toString().slice(0, 255)
+
       await conn.query(
         `INSERT INTO daLogin (loLicensePrefix, LicenseID, loStatus, loReason, loIpAddress, loUserAgent)
          VALUES (?, ?, ?, ?, ?, ?)`,
@@ -89,10 +104,11 @@ async function loginHandler(req, res) {
           found?.LicenseID || null,
           status === 'ok' ? 'success' : 'failed',
           status,
-          (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').toString().slice(0,45),
-          (req.headers['user-agent'] || '').toString().slice(0,255)
+          ip,
+          ua
         ]
       )
+
       if (status === 'ok') return res.json({ status: 'ok', prefix })
       return res.status(401).json({ status, error: status })
     } finally {
