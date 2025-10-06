@@ -7,44 +7,39 @@ import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import cookieParser from "cookie-parser";
 import morgan from "morgan";
+import { createProxyMiddleware } from "http-proxy-middleware";
 
 const {
-  PORT = 3001,
-  CORS_ORIGIN = "",               
-  AUTH_SERVICE_URL,
-  EDGE_HMAC_SECRET,
-  JWT_COOKIE_DOMAIN,             
+  PORT = "3000",
+  CORS_ORIGIN = "",
+  AUTH_SERVICE_URL = "http://127.0.0.1:4001",
+  EDGE_HMAC_SECRET = "",
+  JWT_COOKIE_DOMAIN = "",
   JWT_COOKIE_SECURE = "true",
-  JWT_VERIFY_SECRET,
-  NODE_ENV,
+  JWT_VERIFY_SECRET = "",
+  NODE_ENV = "production",
 } = process.env;
 
 const app = express();
-
 app.set("trust proxy", ["loopback", "linklocal", "uniquelocal"]);
-
 app.disable("x-powered-by");
 app.use(helmet());
 app.use(morgan("tiny"));
 
-const allowList = (CORS_ORIGIN || '')
-  .split(',')
-  .map(s => s.trim())
+const allowList = (CORS_ORIGIN || "")
+  .split(",")
+  .map((s) => s.trim())
   .filter(Boolean);
 
-app.use(cors({
-  origin(origin, cb) {
-    if (!origin || allowList.includes(origin)) return cb(null, true);
-    return cb(new Error('CORS blocked'), false);
-  },
-  credentials: true,
-}));
-
-
-app.use(express.json({ limit: "64kb" }));
-app.use(cookieParser());
-
-console.log("[edge] AUTH_SERVICE_URL =", AUTH_SERVICE_URL);
+app.use(
+  cors({
+    origin(origin, cb) {
+      if (!origin || allowList.includes(origin)) return cb(null, true);
+      return cb(new Error("CORS blocked"), false);
+    },
+    credentials: true,
+  })
+);
 
 const limiter = rateLimit({
   windowMs: 60_000,
@@ -52,67 +47,64 @@ const limiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
 });
-app.use('/auth', limiter);
+app.use("/auth", limiter);
 
-const USE_HOST_PREFIX =
-  NODE_ENV === "production" &&
-  JWT_COOKIE_SECURE === "true" &&
-  !JWT_COOKIE_DOMAIN; 
+app.use(cookieParser());
 
 const cookieBase = (ttlSec) => ({
   httpOnly: true,
-  secure: JWT_COOKIE_SECURE === 'true',        
-  sameSite: allowList.length ? 'none' : 'strict',
-  path: '/',
+  secure: JWT_COOKIE_SECURE === "true",
+  sameSite: allowList.length ? "none" : "strict",
+  path: "/",
   ...(JWT_COOKIE_DOMAIN ? { domain: JWT_COOKIE_DOMAIN } : {}),
   maxAge: ttlSec * 1000,
 });
 const setCookie = (res, name, value, ttlSec) =>
   res.cookie(name, value, cookieBase(ttlSec));
+const clearCookie = (res, name) =>
+  res.clearCookie(name, {
+    httpOnly: true,
+    secure: JWT_COOKIE_SECURE === "true",
+    sameSite: allowList.length ? "none" : "strict",
+    path: "/",
+    ...(JWT_COOKIE_DOMAIN ? { domain: JWT_COOKIE_DOMAIN } : {}),
+  });
 
-const NAME_AT = 'kaizen_at';
-const NAME_RT = 'kaizen_rt';
+const NAME_AT = "kaizen_at";
+const NAME_RT = "kaizen_rt";
 
 const sign = (body) =>
-  crypto.createHmac("sha256", EDGE_HMAC_SECRET).update(JSON.stringify(body)).digest("hex");
+  crypto
+    .createHmac("sha256", EDGE_HMAC_SECRET)
+    .update(JSON.stringify(body))
+    .digest("hex");
 
-
-/* --------- RUTAS --------- */
-
-app.post("/auth/license/login", async (req, res) => {
+app.post("/auth/license/login", express.json({ limit: "64kb" }), async (req, res) => {
   try {
-    const clientIp = (req.headers["x-forwarded-for"] || req.ip || "")
-      .toString()
-      .split(",")[0]
-      .trim();
+    const clientIp = (req.headers["x-forwarded-for"] || req.ip || "").toString().split(",")[0].trim();
     const userAgent = req.headers["user-agent"] || "";
     const body = {
       license: String(req.body.license || ""),
       meta: { clientIp, userAgent, edgeRequestId: crypto.randomUUID() },
     };
-
     const r = await fetch(`${AUTH_SERVICE_URL}/internal/auth/license/login`, {
       method: "POST",
       headers: { "content-type": "application/json", "x-hmac-sign": sign(body) },
       body: JSON.stringify(body),
     });
-
     const raw = await r.text();
     let json;
-    try { json = JSON.parse(raw); }
-    catch {
-      console.error("[edge] auth raw response (first 400 chars):\n", raw.slice(0, 400));
+    try {
+      json = JSON.parse(raw);
+    } catch {
       return res.status(502).json({ error: "bad-auth-response" });
     }
-
     if (!r.ok || !json.ok) return res.status(r.status).json(json);
-
     const { tokens, accessTtl = "900", refreshTtl = "2592000" } = json;
     setCookie(res, NAME_AT, tokens.accessToken, Number(accessTtl));
     setCookie(res, NAME_RT, tokens.refreshToken, Number(refreshTtl));
     res.status(204).send();
-  } catch (e) {
-    console.error("edge login error", e);
+  } catch {
     res.status(500).json({ error: "server-error" });
   }
 });
@@ -121,17 +113,13 @@ app.get("/auth/me", async (req, res) => {
   const at = req.cookies?.[NAME_AT];
   const rt = req.cookies?.[NAME_RT];
   const now = Math.floor(Date.now() / 1000);
-
   if (at) {
     try {
       const d = jwt.verify(at, JWT_VERIFY_SECRET);
-      if (d.exp > now)
-        return res.json({ ok: true, user: { id: d.sub, tenantId: d.tenantId } });
+      if (d.exp > now) return res.json({ ok: true, user: { id: d.sub, tenantId: d.tenantId } });
     } catch {}
   }
-
   if (!rt) return res.status(401).json({ error: "no-session" });
-
   try {
     const body = { refreshToken: rt };
     const r = await fetch(`${AUTH_SERVICE_URL}/internal/auth/refresh`, {
@@ -141,7 +129,6 @@ app.get("/auth/me", async (req, res) => {
     });
     const json = await r.json();
     if (!r.ok || !json.ok) return res.status(401).json({ error: "refresh-failed" });
-
     const { tokens } = json;
     setCookie(res, NAME_AT, tokens.accessToken, 60 * 15);
     setCookie(res, NAME_RT, tokens.refreshToken, 60 * 60 * 24 * 30);
@@ -152,17 +139,11 @@ app.get("/auth/me", async (req, res) => {
   }
 });
 
-app.post("/auth/logout", (req, res) => {
+app.post("/auth/logout", (_req, res) => {
   clearCookie(res, NAME_AT);
   clearCookie(res, NAME_RT);
   res.status(204).send();
 });
-
-app.get("/health", (_req, res) => res.type("text").send("ok"));
-
-app.listen(PORT, () => console.log("edge-api on", PORT));
-
-app.get("/", (_req, res) => res.type("text").send("ok"));
 
 app.post("/auth/license/validate", (req, res) => {
   const at = req.cookies?.[NAME_AT];
@@ -175,11 +156,18 @@ app.post("/auth/license/validate", (req, res) => {
   }
 });
 
-app.get("/", (_req, res) => res.type("text").send("ok")); 
+app.use(
+  "/auth",
+  createProxyMiddleware({
+    target: AUTH_SERVICE_URL,
+    changeOrigin: false,
+    xfwd: true,
+  })
+);
 
-app.post("/auth/license/validate", (req, res) => {
-  const at = req.cookies?.[NAME_AT];
-  if (!at) return res.status(401).json({ error: "no-session" });
-  try { jwt.verify(at, JWT_VERIFY_SECRET); return res.status(204).send(); }
-  catch { return res.status(401).json({ error: "invalid" }); }
+app.get("/health", (_req, res) => res.type("text").send("ok"));
+app.get("/", (_req, res) => res.type("text").send("ok"));
+
+app.listen(Number(PORT), () => {
+  console.log("edge-api on", PORT);
 });

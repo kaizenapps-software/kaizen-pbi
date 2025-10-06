@@ -3,6 +3,7 @@ import express from 'express'
 import helmet from 'helmet'
 import cors from 'cors'
 import crypto from 'crypto'
+import fs from 'fs'
 import { createPool } from 'mysql2/promise'
 
 const app = express()
@@ -11,20 +12,39 @@ app.use(helmet({ contentSecurityPolicy: false }))
 app.use(cors({ origin: true, credentials: true }))
 app.use(express.json({ limit: '1mb' }))
 
-const { DB_HOST, DB_PORT, DB_USER, DB_PASS, DB_NAME, PEPPER } = process.env
+const {
+  MYSQL_HOST,
+  MYSQL_PORT,
+  MYSQL_USER,
+  MYSQL_PASSWORD,
+  MYSQL_DB,
+  AUTH_PEPPER,
+  MYSQL_SSL_CA_PATH,
+  MYSQL_SSL_REJECT_UNAUTHORIZED
+} = process.env
+
+const ssl =
+  MYSQL_SSL_CA_PATH
+    ? {
+        ca: fs.readFileSync(MYSQL_SSL_CA_PATH),
+        rejectUnauthorized:
+          String(MYSQL_SSL_REJECT_UNAUTHORIZED || 'true').toLowerCase() !== 'false'
+      }
+    : undefined
 
 const pool = createPool({
-  host: DB_HOST,
-  port: DB_PORT ? Number(DB_PORT) : 3306,
-  user: DB_USER,
-  password: DB_PASS || undefined,
-  database: DB_NAME,
+  host: MYSQL_HOST,
+  port: MYSQL_PORT ? Number(MYSQL_PORT) : 3306,
+  user: MYSQL_USER,
+  password: MYSQL_PASSWORD || undefined,
+  database: MYSQL_DB,
   connectionLimit: 8,
-  namedPlaceholders: true
+  namedPlaceholders: true,
+  ...(ssl ? { ssl } : {})
 })
 
 function sha256HexPeppered(v) {
-  return crypto.createHash('sha256').update((PEPPER || '') + v).digest('hex')
+  return crypto.createHash('sha256').update((AUTH_PEPPER || '') + v).digest('hex')
 }
 
 function extractPrefix(license) {

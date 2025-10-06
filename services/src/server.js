@@ -9,7 +9,8 @@ async function loginHandler(req, res) {
     const prefix = extractPrefix(license);
     if (!prefix) return res.status(400).json({ status: 'invalid-license', error: 'invalid-license' });
 
-    const licenseHash = sha256HexPeppered(license).toLowerCase();
+    const canon = license.replace(/\s/g, '').toUpperCase();
+    const licenseHash = sha256HexPeppered(canon).toLowerCase();
 
     const conn = await pool.getConnection();
     try {
@@ -18,7 +19,8 @@ async function loginHandler(req, res) {
                 (daExpiryDate < CURDATE()) AS isExpired
            FROM daDashboard
           WHERE daLicenseHash = ?
-          ORDER BY LicenseID DESC LIMIT 1`,
+          ORDER BY LicenseID DESC
+          LIMIT 1`,
         [licenseHash]
       );
 
@@ -28,7 +30,7 @@ async function loginHandler(req, res) {
       if (found && found.daClientPrefix === prefix) {
         if (found.daStatus !== 'active') {
           status = found.daStatus;
-        } else if (found.isExpired) {
+        } else if (Boolean(found.isExpired)) {
           await conn.query('UPDATE daDashboard SET daStatus="expired" WHERE LicenseID=?', [found.LicenseID]);
           status = 'expired';
         } else {
@@ -36,17 +38,14 @@ async function loginHandler(req, res) {
         }
       }
 
+      const xff = (req.headers['x-forwarded-for'] || '').toString();
+      const ip = (xff.split(',')[0] || req.socket.remoteAddress || '').toString().slice(0, 45);
+      const ua = (req.headers['user-agent'] || '').toString().slice(0, 255);
+
       await conn.query(
         `INSERT INTO daLogin (loLicensePrefix, LicenseID, loStatus, loReason, loIpAddress, loUserAgent)
          VALUES (?, ?, ?, ?, ?, ?)`,
-        [
-          prefix,
-          found?.LicenseID || null,
-          status === 'ok' ? 'success' : 'failed',
-          status,
-          (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').toString().slice(0,45),
-          (req.headers['user-agent'] || '').toString().slice(0,255),
-        ]
+        [prefix, found?.LicenseID || null, status === 'ok' ? 'success' : 'failed', status, ip, ua]
       );
 
       if (status === 'ok') return res.json({ status: 'ok', prefix });
