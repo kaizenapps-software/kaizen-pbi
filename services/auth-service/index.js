@@ -54,8 +54,8 @@ function extractPrefix(license) {
 
 app.get('/healthz', (_req, res) => res.status(200).json({ ok: true }))
 
-app.post('/auth/login', loginHandler)
-app.post('/auth/license/login', loginHandler)
+app.post('/login', loginHandler)
+app.post('/license/login', loginHandler)
 
 async function loginHandler(req, res) {
   try {
@@ -103,7 +103,7 @@ async function loginHandler(req, res) {
   }
 }
 
-app.get('/reports/home', async (req, res) => {
+app.get('/home', async (req, res) => {
   try {
     const { prefix } = req.query
     if (!prefix) return res.status(400).json({ status: 'invalid-prefix', error: 'invalid-prefix' })
@@ -123,7 +123,7 @@ app.get('/reports/home', async (req, res) => {
   }
 })
 
-app.get('/reports/:reportCode', async (req, res) => {
+app.get('/:reportCode', async (req, res) => {
   try {
     const { prefix } = req.query
     const { reportCode } = req.params
