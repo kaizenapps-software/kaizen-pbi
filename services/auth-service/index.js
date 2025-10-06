@@ -13,23 +13,13 @@ app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: "1mb" }));
 
 const {
-  MYSQL_HOST,
-  MYSQL_PORT,
-  MYSQL_USER,
-  MYSQL_PASSWORD,
-  MYSQL_DB,
-  AUTH_PEPPER,
-  MYSQL_SSL_CA_PATH,
-  MYSQL_SSL_REJECT_UNAUTHORIZED,
+  MYSQL_HOST, MYSQL_PORT, MYSQL_USER, MYSQL_PASSWORD, MYSQL_DB,
+  AUTH_PEPPER, MYSQL_SSL_CA_PATH, MYSQL_SSL_REJECT_UNAUTHORIZED,
   DEBUG_AUTH,
 } = process.env;
 
 const ssl = MYSQL_SSL_CA_PATH
-  ? {
-      ca: fs.readFileSync(MYSQL_SSL_CA_PATH),
-      rejectUnauthorized:
-        String(MYSQL_SSL_REJECT_UNAUTHORIZED || "true").toLowerCase() !== "false",
-    }
+  ? { ca: fs.readFileSync(MYSQL_SSL_CA_PATH), rejectUnauthorized: String(MYSQL_SSL_REJECT_UNAUTHORIZED || "true").toLowerCase() !== "false" }
   : undefined;
 
 const pool = createPool({
@@ -45,43 +35,38 @@ const pool = createPool({
 
 const RAW_PEP = AUTH_PEPPER || "";
 const PEP = RAW_PEP.trim().replace(/["']/g, "").replace(/[\s\u200B-\u200D\uFEFF]/g, "");
-if (DEBUG_AUTH === "1") {
-  console.log("[auth] PEP(hex) =", Buffer.from(PEP, "utf8").toString("hex"));
-}
+if (DEBUG_AUTH === "1") console.log("[auth] PEP(hex) =", Buffer.from(PEP, "utf8").toString("hex"));
 
-function sha256HexPeppered(v) {
-  return crypto.createHash("sha256").update(PEP + v).digest("hex");
-}
+const sha256HexPeppered = (v) => crypto.createHash("sha256").update(PEP + v).digest("hex");
 
-function extractPrefix(license) {
-  const m =
-    /^([A-Za-z]{2,6})-([A-F0-9]{4})-([A-F0-9]{4})-([A-F0-9]{4})-([A-F0-9]{4})$/i.exec(
-      String(license).trim()
-    );
+const extractPrefix = (license) => {
+  const m = /^([A-Za-z]{2,6})-([A-F0-9]{4})-([A-F0-9]{4})-([A-F0-9]{4})-([A-F0-9]{4})$/i.exec(String(license).trim());
   return m ? m[1].toUpperCase() : null;
-}
+};
 
 app.get("/healthz", (_req, res) => res.status(200).json({ ok: true }));
-
 app.post("/login", loginHandler);
 app.post("/license/login", loginHandler);
+
+if (DEBUG_AUTH === "1") {
+  app.post("/__debug/hash", (req, res) => {
+    const license = String(req.body?.license || "").trim().toUpperCase();
+    const hash = sha256HexPeppered(license).toLowerCase();
+    res.json({ canon: license, hash, pepHex: Buffer.from(PEP, "utf8").toString("hex") });
+  });
+}
 
 async function loginHandler(req, res) {
   try {
     const { license } = req.body || {};
-    if (!license)
-      return res.status(400).json({ status: "missing-license", error: "missing-license" });
+    if (!license) return res.status(400).json({ status: "missing-license", error: "missing-license" });
 
     const prefix = extractPrefix(license);
-    if (!prefix)
-      return res.status(400).json({ status: "invalid-license", error: "invalid-license" });
+    if (!prefix) return res.status(400).json({ status: "invalid-license", error: "invalid-license" });
 
-    const canon = String(license).trim().toUpperCase();
+    const canon = String(license).trim().toUpperCase(); 
     const licenseHash = sha256HexPeppered(canon).toLowerCase();
-
-    if (DEBUG_AUTH === "1") {
-      console.log("[auth] login canon=", canon, " hash=", licenseHash);
-    }
+    if (DEBUG_AUTH === "1") console.log("[auth] login canon=", canon, " hash=", licenseHash);
 
     const conn = await pool.getConnection();
     try {
@@ -101,9 +86,7 @@ async function loginHandler(req, res) {
       if (found && found.daClientPrefix === prefix) {
         if (found.daStatus !== "active") status = found.daStatus;
         else if (Boolean(found.isExpired)) {
-          await conn.query('UPDATE daDashboard SET daStatus="expired" WHERE LicenseID=?', [
-            found.LicenseID,
-          ]);
+          await conn.query('UPDATE daDashboard SET daStatus="expired" WHERE LicenseID=?', [found.LicenseID]);
           status = "expired";
         } else {
           status = "ok";
@@ -111,37 +94,16 @@ async function loginHandler(req, res) {
       }
 
       const xff = (req.headers["x-forwarded-for"] || "").toString();
-      const ip = (xff.split(",")[0] || req.socket.remoteAddress || "")
-        .toString()
-        .slice(0, 45);
+      const ip = (xff.split(",")[0] || req.socket.remoteAddress || "").toString().slice(0, 45);
       const ua = (req.headers["user-agent"] || "").toString().slice(0, 255);
 
       await conn.query(
         `INSERT INTO daLogin (loLicensePrefix, LicenseID, loStatus, loReason, loIpAddress, loUserAgent)
          VALUES (?, ?, ?, ?, ?, ?)`,
-        [
-          prefix,
-          found?.LicenseID || null,
-          status === "ok" ? "success" : "failed",
-          status,
-          ip,
-          ua,
-        ]
+        [prefix, found?.LicenseID || null, status === "ok" ? "success" : "failed", status, ip, ua]
       );
 
-      if (DEBUG_AUTH === "1") {
-        console.log("[auth] result:", {
-          status,
-          found:
-            found &&
-            {
-              LicenseID: found.LicenseID,
-              daClientPrefix: found.daClientPrefix,
-              daStatus: found.daStatus,
-              daExpiryDate: found.daExpiryDate,
-            },
-        });
-      }
+      if (DEBUG_AUTH === "1") console.log("[auth] result:", { status, found: found && { LicenseID: found.LicenseID, daClientPrefix: found.daClientPrefix, daStatus: found.daStatus, daExpiryDate: found.daExpiryDate } });
 
       if (status === "ok") return res.json({ status: "ok", prefix });
       return res.status(401).json({ status, error: status });
@@ -161,12 +123,9 @@ app.get("/home", async (req, res) => {
     try {
       await conn.query("SET @o_status := NULL, @o_url := NULL, @o_code := NULL");
       await conn.query("CALL sp_daSelectHomeLink(?, @o_status, @o_url, @o_code)", [prefix]);
-      const [rows] = await conn.query(
-        "SELECT @o_status AS status, @o_url AS url, @o_code AS reportCode"
-      );
+      const [rows] = await conn.query("SELECT @o_status AS status, @o_url AS url, @o_code AS reportCode");
       const r = rows?.[0] || {};
-      if (r.status === "ok")
-        return res.json({ status: "ok", url: r.url, reportCode: r.reportCode });
+      if (r.status === "ok") return res.json({ status: "ok", url: r.url, reportCode: r.reportCode });
       return res.status(400).json({ status: r.status || "error", error: r.status || "error" });
     } finally {
       conn.release();
@@ -198,6 +157,4 @@ app.get("/:reportCode", async (req, res) => {
 });
 
 const port = process.env.PORT ? Number(process.env.PORT) : 4001;
-app.listen(port, () => {
-  console.log(`auth-service listening on :${port}`);
-});
+app.listen(port, () => { console.log(`auth-service listening on :${port}`); });

@@ -30,36 +30,11 @@ app.use(
   })
 );
 
-app.use(
-  "/auth",
-  rateLimit({
-    windowMs: 60_000,
-    max: 60,
-    standardHeaders: true,
-    legacyHeaders: false,
-  })
-);
-
-app.use(
-  "/auth",
-  createProxyMiddleware({
-    target: AUTH_SERVICE_URL,
-    changeOrigin: false,
-    xfwd: true,
-  })
-);
-
-app.use(
-  "/reports",
-  createProxyMiddleware({
-    target: AUTH_SERVICE_URL,
-    changeOrigin: false,
-    xfwd: true,
-  })
-);
+app.use("/auth", rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true, legacyHeaders: false }));
+app.use("/auth", createProxyMiddleware({ target: AUTH_SERVICE_URL, changeOrigin: false, xfwd: true }));
+app.use("/reports", createProxyMiddleware({ target: AUTH_SERVICE_URL, changeOrigin: false, xfwd: true }));
 
 app.get("/health", (_req, res) => res.type("text").send("ok"));
-
 app.use((_req, res) => res.status(404).json({ error: "not-found" }));
 
 app.listen(Number(PORT), () => {
