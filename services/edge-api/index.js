@@ -15,7 +15,7 @@ const {
 const app = express();
 
 app.disable('x-powered-by');
-app.set('trust proxy', ['loopback', 'linklocal', 'uniquelocal']);
+app.set('trust proxy', ['loopback','linklocal','uniquelocal']);
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(morgan('tiny'));
 
@@ -42,12 +42,17 @@ app.use('/auth', createProxyMiddleware({
   pathRewrite: { '^/auth': '' },
 }));
 
+app.use('/reports', (req, _res, next) => {
+  console.log('[edge] HIT /reports -', req.method, req.originalUrl);
+  next();
+});
+
 app.use('/reports', createProxyMiddleware({
   target: AUTH_SERVICE_URL,
   xfwd: true,
   changeOrigin: false,
   logLevel: 'debug',
-  onProxyReq(proxyReq, req) {
+  onProxyReq(_proxyReq, req) {
     console.log('[edge→auth]', req.method, req.originalUrl, '→', AUTH_SERVICE_URL + req.originalUrl);
   },
   onProxyRes(proxyRes, req) {

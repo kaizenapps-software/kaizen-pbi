@@ -45,7 +45,6 @@ const extractPrefix = (license) => {
 
 app.get('/healthz', (_req, res) => res.status(200).json({ ok: true }));
 
-// ---------- AUTH ----------
 app.post('/login', loginHandler);
 app.post('/license/login', loginHandler);
 
@@ -103,7 +102,6 @@ if (DEBUG_AUTH === '1') {
   });
 }
 
-// ---------- REPORTS ----------
 async function resolveLicense(conn, canonHashLower) {
   const [rows] = await conn.query(
     `SELECT LicenseID, daClientPrefix AS prefix, daStatus, daExpiryDate,
@@ -297,20 +295,16 @@ app.get('/reports/:reportCode', async (req, res) => {
   }
 });
 
-function listRoutes(appInstance) {
-  const out = [];
-  appInstance._router.stack.forEach(l => {
-    if (!l.route) return;
-    const methods = Object.keys(l.route.methods).filter(Boolean).join(',');
-    out.push(`${methods.toUpperCase()} ${l.route.path}`);
-  });
-  return out.sort();
-}
-
 const port = process.env.PORT ? Number(process.env.PORT) : 4001;
 app.listen(port, () => {
   console.log(`auth-service listening on :${port}`);
   if (DEBUG_AUTH === '1') {
-    console.log('[auth] routes:\n' + listRoutes(app).map(s => '  ' + s).join('\n'));
+    const out = [];
+    app._router.stack.forEach(l => {
+      if (!l.route) return;
+      const methods = Object.keys(l.route.methods).filter(Boolean).join(',');
+      out.push(`${methods.toUpperCase()} ${l.route.path}`);
+    });
+    console.log('[auth] routes:\n' + out.sort().map(s => '  ' + s).join('\n'));
   }
 });
