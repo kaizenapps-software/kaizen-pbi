@@ -73,3 +73,12 @@ export default { apiUrl, jsonHeaders, apiRequest, apiLoginByLicense, apiFetchHom
 export async function apiFetchClientInfo(prefix) {
   return apiRequest(`/reports/client-info?prefix=${encodeURIComponent(prefix)}`, { credentials: 'include' });
 }
+
+export async function apiFetchReportOptions(license) {
+  return apiRequest('/reports/options', {
+    method: 'POST',
+    headers: jsonHeaders,
+    body: JSON.stringify({ license }),
+    credentials: 'include'
+  });
+}
