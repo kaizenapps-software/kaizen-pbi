@@ -374,5 +374,17 @@ app.get('/reports/client-info', clientInfoHandler);
 app.get('/reports/home', reportsHomeHandler);
 app.get('/reports/:reportCode', reportCodeHandler);
 
+function listRoutes(app) {
+  const out = [];
+  app._router.stack.forEach(l => {
+    if (!l.route) return;
+    const methods = Object.keys(l.route.methods).filter(Boolean).join(',');
+    out.push(`${methods.toUpperCase()} ${l.route.path}`);
+  });
+  return out.sort();
+}
+console.log('[auth] routes:\n' + listRoutes(app).map(s => '  ' + s).join('\n'));
+
+
 const port = process.env.PORT ? Number(process.env.PORT) : 4001;
 app.listen(port, () => { console.log(`auth-service listening on :${port}`); });
