@@ -43,15 +43,15 @@ export default function Topbar() {
           <button
             onClick={toggleSidebar}
             aria-label="Abrir menú"
-            className="pressable btn-avatar btn-theme lg:hidden"
-            title="Abrir menú"
-          >
+            className="hamburger pressable btn-avatar btn-theme lg:hidden"
+            title="Abrir menú" 
+            >
             <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" fill="none" strokeWidth="1.8">
               <path d="M3 6h18M3 12h18M3 18h18" />
             </svg>
           </button>
         </div>
-
+        
         {/* Acciones derechas */}
         <div className="flex items-center gap-2">
           <button

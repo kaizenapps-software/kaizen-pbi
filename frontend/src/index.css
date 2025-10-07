@@ -347,8 +347,14 @@
   .page-app .sidebar-backdrop.show{
     opacity: 1; pointer-events: auto;
   }
+  
 }
 
 .bi-frame{
   height: calc(100dvh - var(--topbar-h) - env(safe-area-inset-bottom,0px));
+}
+
+.page-app .hamburger{ display:inline-flex; }
+@media (min-width:1024px){
+  .page-app .hamburger{ display:none; }
 }
