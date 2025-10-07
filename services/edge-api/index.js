@@ -40,33 +40,40 @@ app.use('/auth', createProxyMiddleware({
   xfwd: true,
   changeOrigin: false,
   pathRewrite: { '^/auth': '' },
+  logLevel: 'warn',
 }));
 
-app.use('/reports', (req, _res, next) => {
-  console.log('[edge] HIT /reports -', req.method, req.originalUrl);
-  next();
-});
-
-app.use('/reports', createProxyMiddleware({
+const reportsProxy = createProxyMiddleware({
   target: AUTH_SERVICE_URL,
   xfwd: true,
   changeOrigin: false,
   logLevel: 'debug',
-  onProxyReq(_proxyReq, req) {
+  onProxyReq(proxyReq, req) {
     console.log('[edge→auth]', req.method, req.originalUrl, '→', AUTH_SERVICE_URL + req.originalUrl);
   },
   onProxyRes(proxyRes, req) {
     console.log('[auth→edge]', req.method, req.originalUrl, 'status=', proxyRes.statusCode);
   },
-}));
+  onError(err, req, res) {
+    console.error('[proxy error /reports]', err?.code || err?.message || err);
+    if (!res.headersSent) {
+      res.status(502).json({ error: 'upstream-failed' });
+    }
+  },
+});
+
+app.all(['/reports', '/reports/*'], (req, res, next) => {
+  console.log('[edge] HIT /reports -', req.method, req.originalUrl);
+  return reportsProxy(req, res, next);
+});
 
 app.get('/__diag/ping-options', async (_req, res) => {
   try {
     const r = await fetch(`${AUTH_SERVICE_URL}/reports/options`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ license: 'TEST-0000-0000-0000' }),
-    });
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ license: 'TEST-0000-0000-0000' }),
+  });
     const text = await r.text().catch(() => '');
     res.status(200).type('text').send(`status=${r.status}\n${text}`);
   } catch (e) {
@@ -80,7 +87,6 @@ app.use((req, _res, next) => {
   console.warn('[edge] no match ->', req.method, req.originalUrl);
   next();
 });
-
 app.use((_req, res) => res.status(404).json({ error: 'not-found' }));
 
 app.listen(Number(PORT), () => {
