@@ -69,3 +69,7 @@ export function apiFetchReport(prefix, reportCode) {
 }
 
 export default { apiUrl, jsonHeaders, apiRequest, apiLoginByLicense, apiFetchHome, apiFetchReport };
+
+export async function apiFetchClientInfo(prefix) {
+  return apiRequest(`/reports/client-info?prefix=${encodeURIComponent(prefix)}`, { credentials: 'include' });
+}

@@ -158,3 +158,66 @@ app.get("/:reportCode", async (req, res) => {
 
 const port = process.env.PORT ? Number(process.env.PORT) : 4001;
 app.listen(port, () => { console.log(`auth-service listening on :${port}`); });
+
+async function clientInfoHandler(req, res) {
+  try {
+    const { prefix } = req.query;
+    if (!prefix) return res.status(400).json({ status: "invalid-prefix", error: "invalid-prefix" });
+
+    const conn = await pool.getConnection();
+    try {
+      const [licRows] = await conn.query(
+        `SELECT daClientName AS name, daStatus AS status, daExpiryDate AS expiryDate
+           FROM daDashboard
+          WHERE daClientPrefix = ?
+          ORDER BY LicenseID DESC
+          LIMIT 1`,
+        [prefix]
+      );
+      const lic = licRows?.[0] || null;
+
+      const [repRows] = await conn.query(
+        `SELECT c.crReportCode AS code,
+                IFNULL(r.daReportName, c.crReportCode) AS name,
+                c.crIsDefault AS isDefault,
+                c.crIsActive AS isActive,
+                c.crEmbedUrl AS url
+           FROM daClientReport c
+           LEFT JOIN daReportCatalog r ON r.daReportCode = c.crReportCode
+          WHERE c.crClientPrefix = ?
+            AND c.crIsActive = 1
+          ORDER BY c.crIsDefault DESC, name`,
+        [prefix]
+      );
+
+      const reports = (repRows || []).map(r => ({
+        code: r.code,
+        name: r.name,
+        isDefault: !!r.isDefault,
+        url: r.url
+      }));
+      const defaultReportCode = reports.find(r => r.isDefault)?.code || null;
+
+      return res.json({
+        status: "ok",
+        client: {
+          prefix,
+          name: lic?.name || prefix
+        },
+        license: lic ? {
+          status: lic.status,
+          expiryDate: lic.expiryDate
+        } : null,
+        defaultReportCode,
+        reports
+      });
+    } finally {
+      conn.release();
+    }
+  } catch {
+    return res.status(500).json({ status: "server-error", error: "server-error" });
+  }
+}
+
+app.get("/reports/client-info", clientInfoHandler);
+app.get("/client-info", clientInfoHandler);
