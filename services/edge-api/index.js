@@ -5,19 +5,11 @@ import cors from 'cors';
 import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
 import { createProxyMiddleware } from 'http-proxy-middleware';
-import fetch from 'node-fetch';
-
-app.get('/__diag/ping-options', async (_req, res) => {
-  const r = await fetch(`${process.env.AUTH_SERVICE_URL}/reports/options`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ license: 'TEST-0000-0000-0000-0000'}) });
-  const text = await r.text().catch(()=> '');
-  res.status(200).type('text').send(`status=${r.status}\n${text}`);
-});
-
 
 const {
   PORT = '4002',
   CORS_ORIGIN = '',
-  AUTH_SERVICE_URL = 'http://127.0.0.1:4001', 
+  AUTH_SERVICE_URL = 'http://127.0.0.1:4001',
 } = process.env;
 
 const app = express();
@@ -36,28 +28,48 @@ app.use(cors({
   credentials: true,
 }));
 
-app.use('/auth', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true, legacyHeaders: false }));
+app.use('/auth', rateLimit({
+  windowMs: 60_000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+}));
 
 app.use('/auth', createProxyMiddleware({
-  target: process.env.AUTH_SERVICE_URL,
+  target: AUTH_SERVICE_URL,
   xfwd: true,
   changeOrigin: false,
-  pathRewrite: { '^/auth': '' }  
+  pathRewrite: { '^/auth': '' },
 }));
 
 app.use('/reports', createProxyMiddleware({
-  target: process.env.AUTH_SERVICE_URL,
+  target: AUTH_SERVICE_URL,
   xfwd: true,
   changeOrigin: false,
   logLevel: 'debug',
   onProxyReq(proxyReq, req) {
-    console.log('[edge→auth]', req.method, req.originalUrl, '→', process.env.AUTH_SERVICE_URL + req.originalUrl);
+    console.log('[edge→auth]', req.method, req.originalUrl, '→', AUTH_SERVICE_URL + req.originalUrl);
   },
   onProxyRes(proxyRes, req) {
     console.log('[auth→edge]', req.method, req.originalUrl, 'status=', proxyRes.statusCode);
   },
 }));
 
+// -------- Ruta de diagnóstico --------
+app.get('/__diag/ping-options', async (_req, res) => {
+  try {
+    const r = await fetch(`${AUTH_SERVICE_URL}/reports/options`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ license: 'TEST-0000-0000-0000' }),
+    });
+    const text = await r.text().catch(() => '');
+    res.status(200).type('text').send(`status=${r.status}\n${text}`);
+  } catch (e) {
+    res.status(500).type('text').send(String(e?.stack || e));
+  }
+});
+// ---------------------------------------------------------------------
 
 app.get('/health', (_req, res) => res.type('text').send('ok'));
 app.use((_req, res) => res.status(404).json({ error: 'not-found' }));
