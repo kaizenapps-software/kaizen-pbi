@@ -45,6 +45,7 @@ const extractPrefix = (license) => {
 
 app.get('/healthz', (_req, res) => res.status(200).json({ ok: true }));
 
+// ---------- AUTH ----------
 app.post('/login', loginHandler);
 app.post('/license/login', loginHandler);
 
@@ -84,16 +85,6 @@ async function loginHandler(req, res) {
         }
       }
 
-      const xff = (req.headers['x-forwarded-for'] || '').toString();
-      const ip = (xff.split(',')[0] || req.socket.remoteAddress || '').toString().slice(0, 45);
-      const ua = (req.headers['user-agent'] || '').toString().slice(0, 255);
-
-      await conn.query(
-        `INSERT INTO daLogin (loLicensePrefix, LicenseID, loStatus, loReason, loIpAddress, loUserAgent)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [prefix, found?.LicenseID || null, status === 'ok' ? 'success' : 'failed', status, ip, ua]
-      );
-
       if (status === 'ok') return res.json({ status: 'ok', prefix });
       return res.status(401).json({ status, error: status });
     } finally {
@@ -112,6 +103,7 @@ if (DEBUG_AUTH === '1') {
   });
 }
 
+// ---------- REPORTS ----------
 async function resolveLicense(conn, canonHashLower) {
   const [rows] = await conn.query(
     `SELECT LicenseID, daClientPrefix AS prefix, daStatus, daExpiryDate,
@@ -208,7 +200,7 @@ app.post('/reports/options', async (req, res) => {
   }
 });
 
-async function clientInfoHandler(req, res) {
+app.get('/reports/client-info', async (req, res) => {
   try {
     const prefix = String(req.query?.prefix || '').trim().toUpperCase();
     if (!prefix) return res.status(400).json({ status: 'invalid-prefix', error: 'invalid-prefix' });
@@ -262,9 +254,9 @@ async function clientInfoHandler(req, res) {
   } catch {
     return res.status(500).json({ status: 'server-error', error: 'server-error' });
   }
-}
+});
 
-async function reportsHomeHandler(req, res) {
+app.get('/reports/home', async (req, res) => {
   try {
     const prefix = String(req.query?.prefix || '').trim().toUpperCase();
     if (!prefix) return res.status(400).json({ status: 'invalid-prefix', error: 'invalid-prefix' });
@@ -282,9 +274,9 @@ async function reportsHomeHandler(req, res) {
   } catch {
     return res.status(500).json({ status: 'server-error', error: 'server-error' });
   }
-}
+});
 
-async function reportCodeHandler(req, res) {
+app.get('/reports/:reportCode', async (req, res) => {
   try {
     const prefix = String(req.query?.prefix || '').trim().toUpperCase();
     const { reportCode } = req.params;
@@ -303,11 +295,7 @@ async function reportCodeHandler(req, res) {
   } catch {
     return res.status(500).json({ status: 'server-error', error: 'server-error' });
   }
-}
-
-app.get('/reports/client-info', clientInfoHandler);
-app.get('/reports/home', reportsHomeHandler);
-app.get('/reports/:reportCode', reportCodeHandler);
+});
 
 function listRoutes(appInstance) {
   const out = [];

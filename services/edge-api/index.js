@@ -70,6 +70,12 @@ app.get('/__diag/ping-options', async (_req, res) => {
 });
 
 app.get('/health', (_req, res) => res.type('text').send('ok'));
+
+app.use((req, _res, next) => {
+  console.warn('[edge] no match ->', req.method, req.originalUrl);
+  next();
+});
+
 app.use((_req, res) => res.status(404).json({ error: 'not-found' }));
 
 app.listen(Number(PORT), () => {
