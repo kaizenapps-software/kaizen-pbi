@@ -159,6 +159,9 @@ app.get("/:reportCode", async (req, res) => {
 const port = process.env.PORT ? Number(process.env.PORT) : 4001;
 app.listen(port, () => { console.log(`auth-service listening on :${port}`); });
 
+app.get("/reports/client-info", clientInfoHandler);
+app.get("/client-info", clientInfoHandler);
+
 async function clientInfoHandler(req, res) {
   try {
     const { prefix } = req.query;
@@ -166,6 +169,7 @@ async function clientInfoHandler(req, res) {
 
     const conn = await pool.getConnection();
     try {
+      
       const [licRows] = await conn.query(
         `SELECT daClientName AS name, daStatus AS status, daExpiryDate AS expiryDate
            FROM daDashboard
@@ -194,20 +198,16 @@ async function clientInfoHandler(req, res) {
         code: r.code,
         name: r.name,
         isDefault: !!r.isDefault,
-        url: r.url
+        url: r.url,
       }));
       const defaultReportCode = reports.find(r => r.isDefault)?.code || null;
 
+      if (!lic) return res.status(404).json({ status: "not_found", error: "not_found" });
+
       return res.json({
         status: "ok",
-        client: {
-          prefix,
-          name: lic?.name || prefix
-        },
-        license: lic ? {
-          status: lic.status,
-          expiryDate: lic.expiryDate
-        } : null,
+        client: { prefix, name: lic.name || prefix },
+        license: { status: lic.status, expiryDate: lic.expiryDate },
         defaultReportCode,
         reports
       });
@@ -218,6 +218,3 @@ async function clientInfoHandler(req, res) {
     return res.status(500).json({ status: "server-error", error: "server-error" });
   }
 }
-
-app.get("/reports/client-info", clientInfoHandler);
-app.get("/client-info", clientInfoHandler);

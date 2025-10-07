@@ -152,7 +152,7 @@ export default function LoginPage() {
                   id="license"
                   name="license"
                   autoComplete="off"
-                  placeholder="AAAA-BBBB-CCCC-DDDD"
+                  placeholder="AAA-BBBB-CCCC-DDDD"
                   value={license}
                   onChange={(e) => setLicense(e.target.value.toUpperCase())}
                   onPaste={handlePaste}
