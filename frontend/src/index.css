@@ -360,25 +360,26 @@
 }
 
 .page-app .btn-avatar,
-.page-app .btn-icon,
+.page-app .btn-icon{
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  line-height: 0;
+}
+
 .page-app .hamburger{
   width: 40px;
   height: 40px;
   border-radius: 999px;
-  display: grid;        
-  place-items: center;  
-  line-height: 0;       
+  line-height: 0;
+  display: none;          
+}
+@media (max-width:1023px){
+  .page-app .hamburger{ display: grid; place-items: center; }
 }
 
-.page-app .btn-avatar svg,
-.page-app .btn-icon svg,
-.page-app .hamburger svg{
-  display: block;
-  width: 18px;
-  height: 18px;
-}
-
-.page-app .topbar,
-.page-app header .flex{
-  align-items: center;
+@media (min-width:1024px){
+  .page-app .hamburger{ display: none !important; }
 }
