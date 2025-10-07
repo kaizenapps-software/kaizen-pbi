@@ -41,7 +41,8 @@ app.use('/reports', createProxyMiddleware({
   target: AUTH_SERVICE_URL,
   xfwd: true,
   changeOrigin: false,
-}))
+  pathRewrite: { '^/reports': '' },
+}));
 
 app.get('/health', (_req, res) => res.type('text').send('ok'))
 app.use((_req, res) => res.status(404).json({ error: 'not-found' }))

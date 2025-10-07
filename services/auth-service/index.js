@@ -356,7 +356,6 @@ app.post('/reports/home', async (req, res) => {
         }
       }
 
-      // Uso opcional por ?prefix (diagnóstico)
       const prefix = String(req.query?.prefix || '').trim().toUpperCase()
       if (!prefix) return res.status(400).json({ status: 'invalid-prefix', error: 'invalid-prefix' })
       await conn.query('SET @o_status := NULL, @o_url := NULL, @o_code := NULL')
@@ -373,13 +372,15 @@ app.post('/reports/home', async (req, res) => {
   }
 })
 
-app.get('/reports/client-info', clientInfoHandler)
-app.get('/client-info', clientInfoHandler)
+app.post('/options',        app._router.stack.find(l => l.route && l.route.path==='/reports/options').route.stack[0].handle);
+app.post('/home',           app._router.stack.find(l => l.route && l.route.path==='/reports/home').route.stack[0].handle);
+app.get ('/client-info',    app._router.stack.find(l => l.route && l.route.path==='/reports/client-info').route.stack[0].handle);
 
-app.get('/reports/home', reportsHomeHandler)
-app.get('/home', reportsHomeHandler)
 
-app.get('/reports/:reportCode', reportCodeHandler)
+app.post('/reports/options',   );
+app.post('/reports/home',      );
+app.get ('/reports/client-info',);
+
 
 const port = process.env.PORT ? Number(process.env.PORT) : 4001
 app.listen(port, () => { console.log(`auth-service listening on :${port}`) })
