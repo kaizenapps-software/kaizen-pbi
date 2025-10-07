@@ -305,3 +305,50 @@
   }
 }
 }
+
+/* ====== Responsive App Shell  ====== */
+:root{ --topbar-h:56px; }
+@media (min-width:1024px){ :root{ --topbar-h:64px; } }
+
+.page-app{ position:relative; }
+
+.page-app .content{
+  min-width: 0;
+}
+
+@media (min-width:1024px){
+  .page-app .content{
+    padding-left: 0;
+  }
+}
+
+@media (max-width:1023px){
+  .page-app .sidebar{
+    position: fixed;
+    left: 0; top: 0; bottom: 0;
+    height: 100dvh;
+    width: 78vw; max-width: 320px;
+    box-shadow: var(--shadow-strong);
+    transform: translateX(-100%);
+    transition: transform .25s cubic-bezier(.22,1,.36,1);
+    z-index: 100;
+  }
+  .page-app .sidebar.open{
+    transform: translateX(0);
+  }
+
+  .page-app .sidebar-backdrop{
+    position: fixed; inset: 0; z-index: 90;
+    background: rgba(0,0,0,.38);
+    backdrop-filter: blur(1px);
+    opacity: 0; pointer-events: none;
+    transition: opacity .2s ease;
+  }
+  .page-app .sidebar-backdrop.show{
+    opacity: 1; pointer-events: auto;
+  }
+}
+
+.bi-frame{
+  height: calc(100dvh - var(--topbar-h) - env(safe-area-inset-bottom,0px));
+}

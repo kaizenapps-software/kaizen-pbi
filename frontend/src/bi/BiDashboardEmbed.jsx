@@ -47,14 +47,15 @@ export default function BiDashboardEmbed({ style }) {
 
   return (
     <iframe
-      key={url}
-      title="pbi"
-      src={url}
-      className="w-full h-full border-0"
-      style={style}
-      allow="fullscreen"
-      allowFullScreen
-      referrerPolicy="no-referrer"
+    key={url}
+    title="pbi"
+    src={url}
+    className={`w-full h-full border-0 ${!style ? "bi-frame" : ""}`}
+    style={style}
+    allow="fullscreen"
+    allowFullScreen
+    referrerPolicy="no-referrer"
     />
   );
+
 }
