@@ -1,48 +1,71 @@
-const API_BASE = import.meta.env.VITE_API_BASE || ''
+const RAW_BASE = import.meta.env.VITE_API_BASE || '';
+const API_BASE = RAW_BASE
+  ? RAW_BASE.replace(/\/+$/, '') 
+  : '';                           
 
-export const jsonHeaders = { 'Content-Type': 'application/json' }
+export const jsonHeaders = { 'Content-Type': 'application/json' };
 
 export function apiUrl(path = '') {
-  if (!API_BASE) return path
-  if (path.startsWith('http')) return path
-  return `${API_BASE}${path}`
+  if (!API_BASE) return path;
+  if (/^https?:\/\//i.test(path)) return path;
+  const p = path.startsWith('/') ? path : `/${path}`;
+  return `${API_BASE}${p}`;
 }
 
 function timeoutSignal(ms) {
-  const ctrl = new AbortController()
-  const id = setTimeout(() => ctrl.abort('timeout'), ms)
-  return { signal: ctrl.signal, cancel: () => clearTimeout(id) }
+  const ctrl = new AbortController();
+  const id = setTimeout(() => ctrl.abort(new DOMException('timeout','AbortError')), ms);
+  return { signal: ctrl.signal, cancel: () => clearTimeout(id) };
 }
 
 export async function apiRequest(path, opts = {}) {
-  const { signal, cancel } = timeoutSignal(20000)
-  const init = { ...opts, signal }
-  init.headers = init.headers || {}
-  if (init.body && !(init.body instanceof FormData)) init.headers['Content-Type'] = init.headers['Content-Type'] || 'application/json'
+  const { signal, cancel } = timeoutSignal(20000);
   try {
-    const res = await fetch(apiUrl(path), init)
-    let data = null
-    try { data = await res.json() } catch {}
-    if (!res.ok) {
-      const msg = (data && (data.status || data.error)) || 'error'
-      throw new Error(msg)
+    const init = {
+      credentials: 'include',   
+      ...opts,
+      signal,
+      headers: { ...(opts.headers || {}) },
+    };
+
+    if (init.body && !(init.body instanceof FormData)) {
+      init.headers['Content-Type'] = init.headers['Content-Type'] || 'application/json';
     }
-    return data
+
+    const res = await fetch(apiUrl(path), init);
+
+    let data = null;
+    const text = await res.text().catch(() => '');
+    if (text) {
+      try { data = JSON.parse(text); } catch { data = { raw: text }; }
+    }
+
+    if (!res.ok) {
+      const msg = (data && (data.status || data.error)) || `${res.status}`;
+      throw new Error(msg);
+    }
+    return data ?? { ok: true };
+  } catch (e) {
+    if (e?.name === 'AbortError') throw new Error('timeout');
+    throw e;
   } finally {
-    cancel()
+    cancel();
   }
 }
 
-export async function apiLoginByLicense(license) {
-  return apiRequest('/auth/login', { method: 'POST', body: JSON.stringify({ license }), credentials: 'include' })
+export function apiLoginByLicense(license) {
+  return apiRequest('/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ license }),
+  });
 }
 
-export async function apiFetchHome(prefix) {
-  return apiRequest(`/reports/home?prefix=${encodeURIComponent(prefix)}`, { credentials: 'include' })
+export function apiFetchHome(prefix) {
+  return apiRequest(`/reports/home?prefix=${encodeURIComponent(prefix)}`);
 }
 
-export async function apiFetchReport(prefix, reportCode) {
-  return apiRequest(`/reports/${encodeURIComponent(reportCode)}?prefix=${encodeURIComponent(prefix)}`, { credentials: 'include' })
+export function apiFetchReport(prefix, reportCode) {
+  return apiRequest(`/reports/${encodeURIComponent(reportCode)}?prefix=${encodeURIComponent(prefix)}`);
 }
 
-export default { apiUrl, jsonHeaders, apiRequest, apiLoginByLicense, apiFetchHome, apiFetchReport }
+export default { apiUrl, jsonHeaders, apiRequest, apiLoginByLicense, apiFetchHome, apiFetchReport };
