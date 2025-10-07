@@ -15,11 +15,11 @@ const {
 const app = express();
 
 app.disable('x-powered-by');
-app.set('trust proxy', ['loopback','linklocal','uniquelocal']);
+app.set('trust proxy', ['loopback', 'linklocal', 'uniquelocal']);
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(morgan('tiny'));
 
-const allowList = CORS_ORIGIN.split(',').map(s=>s.trim()).filter(Boolean);
+const allowList = CORS_ORIGIN.split(',').map(s => s.trim()).filter(Boolean);
 app.use(cors({
   origin(origin, cb) {
     if (!origin || allowList.includes(origin)) return cb(null, true);
@@ -55,7 +55,6 @@ app.use('/reports', createProxyMiddleware({
   },
 }));
 
-// -------- Ruta de diagnóstico --------
 app.get('/__diag/ping-options', async (_req, res) => {
   try {
     const r = await fetch(`${AUTH_SERVICE_URL}/reports/options`, {
@@ -69,7 +68,6 @@ app.get('/__diag/ping-options', async (_req, res) => {
     res.status(500).type('text').send(String(e?.stack || e));
   }
 });
-// ---------------------------------------------------------------------
 
 app.get('/health', (_req, res) => res.type('text').send('ok'));
 app.use((_req, res) => res.status(404).json({ error: 'not-found' }));
