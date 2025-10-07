@@ -13,12 +13,13 @@ const {
 } = process.env
 
 const app = express()
+
 app.disable('x-powered-by')
-app.set('trust proxy', ['loopback', 'linklocal', 'uniquelocal'])
+app.set('trust proxy', ['loopback','linklocal','uniquelocal'])
 app.use(helmet())
 app.use(morgan('tiny'))
 
-const allowList = CORS_ORIGIN.split(',').map(s => s.trim()).filter(Boolean)
+const allowList = CORS_ORIGIN.split(',').map(s=>s.trim()).filter(Boolean)
 app.use(cors({
   origin(origin, cb) {
     if (!origin || allowList.includes(origin)) return cb(null, true)
@@ -28,8 +29,19 @@ app.use(cors({
 }))
 
 app.use('/auth', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true, legacyHeaders: false }))
-app.use('/auth', createProxyMiddleware({ target: AUTH_SERVICE_URL, changeOrigin: false, xfwd: true }))
-app.use('/reports', createProxyMiddleware({ target: AUTH_SERVICE_URL, changeOrigin: false, xfwd: true }))
+
+app.use('/auth', createProxyMiddleware({
+  target: AUTH_SERVICE_URL,
+  xfwd: true,
+  changeOrigin: false,
+  pathRewrite: { '^/auth': '' }
+}))
+
+app.use('/reports', createProxyMiddleware({
+  target: AUTH_SERVICE_URL,
+  xfwd: true,
+  changeOrigin: false,
+}))
 
 app.get('/health', (_req, res) => res.type('text').send('ok'))
 app.use((_req, res) => res.status(404).json({ error: 'not-found' }))

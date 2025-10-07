@@ -116,58 +116,52 @@ async function loginHandler(req, res) {
 }
 
 async function reportsHomeHandler(req, res) {
-
-  const { prefix: qPrefix } = req.query;
-  const prefix = String(qPrefix || '').trim().toUpperCase();
-  if (!prefix) return res.status(400).json({ status: 'invalid-prefix', error: 'invalid-prefix' });
-
-
   try {
-    const { prefix } = req.query;
-    if (!prefix) return res.status(400).json({ status: "invalid-prefix", error: "invalid-prefix" });
-    const conn = await pool.getConnection();
+    const prefix = String(req.query?.prefix || '').trim().toUpperCase()
+    if (!prefix) return res.status(400).json({ status: 'invalid-prefix', error: 'invalid-prefix' })
+    const conn = await pool.getConnection()
     try {
-      await conn.query("SET @o_status := NULL, @o_url := NULL, @o_code := NULL");
-      await conn.query("CALL sp_daSelectHomeLink(?, @o_status, @o_url, @o_code)", [prefix]);
-      const [rows] = await conn.query("SELECT @o_status AS status, @o_url AS url, @o_code AS reportCode");
-      const r = rows?.[0] || {};
-      if (r.status === "ok") return res.json({ status: "ok", url: r.url, reportCode: r.reportCode });
-      return res.status(400).json({ status: r.status || "error", error: r.status || "error" });
+      await conn.query('SET @o_status := NULL, @o_url := NULL, @o_code := NULL')
+      await conn.query('CALL sp_daSelectHomeLink(?, @o_status, @o_url, @o_code)', [prefix])
+      const [rows] = await conn.query('SELECT @o_status AS status, @o_url AS url, @o_code AS reportCode')
+      const r = rows?.[0] || {}
+      if (r.status === 'ok') return res.json({ status: 'ok', url: r.url, reportCode: r.reportCode })
+      return res.status(400).json({ status: r.status || 'error', error: r.status || 'error' })
     } finally {
-      conn.release();
+      conn.release()
     }
   } catch {
-    return res.status(500).json({ status: "server-error", error: "server-error" });
+    return res.status(500).json({ status: 'server-error', error: 'server-error' })
   }
 }
 
 async function reportCodeHandler(req, res) {
   try {
-    const { prefix } = req.query;
-    const { reportCode } = req.params;
-    if (!prefix) return res.status(400).json({ status: "invalid-prefix", error: "invalid-prefix" });
-    const conn = await pool.getConnection();
+    const prefix = String(req.query?.prefix || '').trim().toUpperCase()
+    const { reportCode } = req.params
+    if (!prefix) return res.status(400).json({ status: 'invalid-prefix', error: 'invalid-prefix' })
+    const conn = await pool.getConnection()
     try {
-      await conn.query("SET @o_status := NULL, @o_url := NULL");
-      await conn.query("CALL sp_daSelectLinkFor(?, ?, @o_status, @o_url)", [prefix, reportCode]);
-      const [rows] = await conn.query("SELECT @o_status AS status, @o_url AS url");
-      const r = rows?.[0] || {};
-      if (r.status === "ok") return res.json({ status: "ok", url: r.url });
-      return res.status(400).json({ status: r.status || "error", error: r.status || "error" });
+      await conn.query('SET @o_status := NULL, @o_url := NULL')
+      await conn.query('CALL sp_daSelectLinkFor(?, ?, @o_status, @o_url)', [prefix, reportCode])
+      const [rows] = await conn.query('SELECT @o_status AS status, @o_url AS url')
+      const r = rows?.[0] || {}
+      if (r.status === 'ok') return res.json({ status: 'ok', url: r.url })
+      return res.status(400).json({ status: r.status || 'error', error: r.status || 'error' })
     } finally {
-      conn.release();
+      conn.release()
     }
   } catch {
-    return res.status(500).json({ status: "server-error", error: "server-error" });
+    return res.status(500).json({ status: 'server-error', error: 'server-error' })
   }
 }
 
 async function clientInfoHandler(req, res) {
   try {
-    const { prefix } = req.query;
-    if (!prefix) return res.status(400).json({ status: "invalid-prefix", error: "invalid-prefix" });
+    const prefix = String(req.query?.prefix || '').trim().toUpperCase()
+    if (!prefix) return res.status(400).json({ status: 'invalid-prefix', error: 'invalid-prefix' })
 
-    const conn = await pool.getConnection();
+    const conn = await pool.getConnection()
     try {
       const [licRows] = await conn.query(
         `SELECT daClientName AS name, daStatus AS status, daExpiryDate AS expiryDate
@@ -176,45 +170,45 @@ async function clientInfoHandler(req, res) {
           ORDER BY LicenseID DESC
           LIMIT 1`,
         [prefix]
-      );
-      const lic = licRows?.[0] || null;
+      )
+      const lic = licRows?.[0] || null
 
       const [repRows] = await conn.query(
         `SELECT c.crReportCode AS code,
-                IFNULL(r.daReportName, c.crReportCode) AS name,
+                IFNULL(c.crReportName, IFNULL(r.daReportName, c.crReportCode)) AS name,
                 c.crIsDefault AS isDefault,
-                c.crIsActive AS isActive,
-                c.crEmbedUrl AS url
+                c.crIsActive  AS isActive,
+                c.crEmbedUrl  AS url
            FROM daClientReport c
-           LEFT JOIN daReportCatalog r ON r.daReportCode = c.crReportCode
+      LEFT JOIN daReportCatalog r ON r.daReportCode = c.crReportCode
           WHERE c.crClientPrefix = ?
             AND c.crIsActive = 1
           ORDER BY c.crIsDefault DESC, name`,
         [prefix]
-      );
+      )
 
       const reports = (repRows || []).map(r => ({
         code: r.code,
         name: r.name,
         isDefault: !!r.isDefault,
         url: r.url,
-      }));
-      const defaultReportCode = reports.find(r => r.isDefault)?.code || null;
+      }))
+      const defaultReportCode = reports.find(r => r.isDefault)?.code || null
 
-      if (!lic) return res.status(404).json({ status: "not_found", error: "not_found" });
+      if (!lic) return res.status(404).json({ status: 'not_found', error: 'not_found' })
 
       return res.json({
-        status: "ok",
+        status: 'ok',
         client: { prefix, name: lic.name || prefix },
         license: { status: lic.status, expiryDate: lic.expiryDate },
         defaultReportCode,
         reports
-      });
+      })
     } finally {
-      conn.release();
+      conn.release()
     }
   } catch {
-    return res.status(500).json({ status: "server-error", error: "server-error" });
+    return res.status(500).json({ status: 'server-error', error: 'server-error' })
   }
 }
 
@@ -227,23 +221,17 @@ async function resolveLicense(conn, canonHashLower) {
       ORDER BY LicenseID DESC
       LIMIT 1`,
     [canonHashLower]
-  );
-  return rows?.[0] || null;
+  )
+  return rows?.[0] || null
 }
 
 app.post('/reports/options', async (req, res) => {
-
-  const { prefix: qPrefix } = req.query;
-  const prefix = String(qPrefix || '').trim().toUpperCase();
-  if (!prefix) return res.status(400).json({ status: 'invalid-prefix', error: 'invalid-prefix' });
-
-
   try {
-    const license = String(req.body?.license || '').trim().toUpperCase();
-    if (!license) return res.status(400).json({ status: 'missing-license', error: 'missing-license' });
+    const license = String(req.body?.license || '').trim().toUpperCase()
+    if (!license) return res.status(400).json({ status: 'missing-license', error: 'missing-license' })
 
-    const licenseHash = sha256HexPeppered(license).toLowerCase();
-    const conn = await pool.getConnection();
+    const licenseHash = sha256HexPeppered(license).toLowerCase()
+    const conn = await pool.getConnection()
     try {
       const [rows] = await conn.query(
         `SELECT LicenseID, daClientPrefix AS prefix, daStatus, daExpiryDate,
@@ -253,18 +241,18 @@ app.post('/reports/options', async (req, res) => {
           ORDER BY LicenseID DESC
           LIMIT 1`,
         [licenseHash]
-      );
-      const lic = rows?.[0];
-      if (!lic) return res.status(401).json({ status: 'mismatch_or_not_found', error: 'mismatch_or_not_found' });
-      if (lic.daStatus !== 'active') return res.status(401).json({ status: lic.daStatus, error: lic.daStatus });
+      )
+      const lic = rows?.[0]
+      if (!lic) return res.status(401).json({ status: 'mismatch_or_not_found', error: 'mismatch_or_not_found' })
+      if (lic.daStatus !== 'active') return res.status(401).json({ status: lic.daStatus, error: lic.daStatus })
       if (lic.isExpired) {
-        await conn.query('UPDATE daDashboard SET daStatus="expired" WHERE LicenseID=?', [lic.LicenseID]);
-        return res.status(401).json({ status: 'expired', error: 'expired' });
+        await conn.query('UPDATE daDashboard SET daStatus="expired" WHERE LicenseID=?', [lic.LicenseID])
+        return res.status(401).json({ status: 'expired', error: 'expired' })
       }
 
-      let repRows;
+      let repRows
       if (lic.daAllowAll) {
-        [repRows] = await conn.query(
+        ;[repRows] = await conn.query(
           `SELECT c.crReportCode AS code,
                   COALESCE(c.crReportName, r.daReportName, c.crReportCode) AS name,
                   c.crIsDefault AS isDefault,
@@ -275,9 +263,9 @@ app.post('/reports/options', async (req, res) => {
               AND c.crIsActive = 1
             ORDER BY c.crIsDefault DESC, name`,
           [lic.prefix]
-        );
+        )
       } else {
-        [repRows] = await conn.query(
+        ;[repRows] = await conn.query(
           `SELECT c.crReportCode AS code,
                   COALESCE(c.crReportName, r.daReportName, c.crReportCode) AS name,
                   c.crIsDefault AS isDefault,
@@ -291,119 +279,107 @@ app.post('/reports/options', async (req, res) => {
             WHERE lr.LicenseID     = ?
             ORDER BY c.crIsDefault DESC, name`,
           [lic.prefix, lic.LicenseID]
-        );
+        )
       }
 
       const reports = (repRows || []).map(r => ({
         code: r.code,
         name: r.name,
-        url:  r.url,
+        url: r.url,
         isDefault: !!r.isDefault
-      }));
-      const defaultReportCode = reports.find(r => r.isDefault)?.code || reports[0]?.code || null;
+      }))
+      const defaultReportCode = reports.find(r => r.isDefault)?.code || reports[0]?.code || null
 
       return res.json({
         status: 'ok',
-        client:  { prefix: lic.prefix }, 
+        client: { prefix: lic.prefix },
         license: { status: lic.daStatus, expiryDate: lic.daExpiryDate, allowAll: !!lic.daAllowAll },
         defaultReportCode,
         reports
-      });
+      })
     } finally {
-      conn.release();
+      conn.release()
     }
   } catch {
-    return res.status(500).json({ status: 'server-error', error: 'server-error' });
+    return res.status(500).json({ status: 'server-error', error: 'server-error' })
   }
-});
-
+})
 
 app.post('/reports/home', async (req, res) => {
-
-const { prefix: qPrefix } = req.query;
-const prefix = String(qPrefix || '').trim().toUpperCase();
-if (!prefix) return res.status(400).json({ status: 'invalid-prefix', error: 'invalid-prefix' });
-
-
   try {
-    const license = String(req.body?.license || '').trim();
-    const prefixQ = (req.query?.prefix || '').toString().trim();
-
-    const conn = await pool.getConnection();
+    const license = String(req.body?.license || '').trim()
+    const conn = await pool.getConnection()
     try {
       if (license) {
-  const canon = license.toUpperCase();
-  const hash  = sha256HexPeppered(canon).toLowerCase();
-  const lic   = await resolveLicense(conn, hash);
-  if (!lic) return res.status(401).json({ status: 'mismatch_or_not_found', error: 'mismatch_or_not_found' });
-  if (lic.daStatus !== 'active') return res.status(401).json({ status: lic.daStatus, error: lic.daStatus });
-  if (lic.isExpired) {
-    await conn.query('UPDATE daDashboard SET daStatus="expired" WHERE LicenseID=?', [lic.LicenseID]);
-    return res.status(401).json({ status: 'expired', error: 'expired' });
-  }
+        const canon = license.toUpperCase()
+        const hash  = sha256HexPeppered(canon).toLowerCase()
+        const lic   = await resolveLicense(conn, hash)
+        if (!lic) return res.status(401).json({ status: 'mismatch_or_not_found', error: 'mismatch_or_not_found' })
+        if (lic.daStatus !== 'active') return res.status(401).json({ status: lic.daStatus, error: lic.daStatus })
+        if (lic.isExpired) {
+          await conn.query('UPDATE daDashboard SET daStatus="expired" WHERE LicenseID=?', [lic.LicenseID])
+          return res.status(401).json({ status: 'expired', error: 'expired' })
+        }
 
-  const [lr] = await conn.query(
-    `SELECT daAllowAll FROM daDashboard WHERE LicenseID=? LIMIT 1`,
-    [lic.LicenseID]
-  );
-  const allowAll = !!(lr?.[0]?.daAllowAll);
+        const [flag] = await conn.query(`SELECT daAllowAll FROM daDashboard WHERE LicenseID=? LIMIT 1`, [lic.LicenseID])
+        const allowAll = !!(flag?.[0]?.daAllowAll)
 
-  if (allowAll) {
-    const [rows] = await conn.query(
-      `SELECT c.crEmbedUrl AS url, c.crReportCode AS reportCode
-         FROM daClientReport c
-        WHERE c.crClientPrefix = ?
-          AND c.crIsActive     = 1
-        ORDER BY c.crIsDefault DESC, c.crUpdatedAt DESC
-        LIMIT 1`,
-      [lic.prefix]
-    );
-    const r = rows?.[0] || {};
-    if (r.url) return res.json({ status: 'ok', url: r.url, reportCode: r.reportCode });
-    return res.status(400).json({ status: 'no_default', error: 'no_default' });
-  } else {
-    const [rows] = await conn.query(
-      `SELECT c.crEmbedUrl AS url, c.crReportCode AS reportCode
-         FROM daLicenseReport lr
-         JOIN daClientReport  c
-           ON c.crClientPrefix = ?
-          AND c.crReportCode   = lr.lrReportCode
-          AND c.crIsActive     = 1
-        WHERE lr.LicenseID     = ?
-        ORDER BY c.crIsDefault DESC, c.crUpdatedAt DESC
-        LIMIT 1`,
-      [lic.prefix, lic.LicenseID]
-    );
-    const r = rows?.[0] || {};
-    if (r.url) return res.json({ status: 'ok', url: r.url, reportCode: r.reportCode });
-    return res.status(400).json({ status: 'no_default', error: 'no_default' });
-  }
-}
+        if (allowAll) {
+          const [rows] = await conn.query(
+            `SELECT c.crEmbedUrl AS url, c.crReportCode AS reportCode
+               FROM daClientReport c
+              WHERE c.crClientPrefix = ?
+                AND c.crIsActive     = 1
+              ORDER BY c.crIsDefault DESC, c.crUpdatedAt DESC
+              LIMIT 1`,
+            [lic.prefix]
+          )
+          const r = rows?.[0] || {}
+          if (r.url) return res.json({ status: 'ok', url: r.url, reportCode: r.reportCode })
+          return res.status(400).json({ status: 'no_default', error: 'no_default' })
+        } else {
+          const [rows] = await conn.query(
+            `SELECT c.crEmbedUrl AS url, c.crReportCode AS reportCode
+               FROM daLicenseReport lr
+               JOIN daClientReport  c
+                 ON c.crClientPrefix = ?
+                AND c.crReportCode   = lr.lrReportCode
+                AND c.crIsActive     = 1
+              WHERE lr.LicenseID     = ?
+              ORDER BY c.crIsDefault DESC, c.crUpdatedAt DESC
+              LIMIT 1`,
+            [lic.prefix, lic.LicenseID]
+          )
+          const r = rows?.[0] || {}
+          if (r.url) return res.json({ status: 'ok', url: r.url, reportCode: r.reportCode })
+          return res.status(400).json({ status: 'no_default', error: 'no_default' })
+        }
+      }
 
-
-      const prefix = prefixQ;
-      if (!prefix) return res.status(400).json({ status: 'invalid-prefix', error: 'invalid-prefix' });
-      await conn.query('SET @o_status := NULL, @o_url := NULL, @o_code := NULL');
-      await conn.query('CALL sp_daSelectHomeLink(?, @o_status, @o_url, @o_code)', [prefix]);
-      const [rows] = await conn.query('SELECT @o_status AS status, @o_url AS url, @o_code AS reportCode');
-      const r = rows?.[0] || {};
-      if (r.status === 'ok') return res.json({ status: 'ok', url: r.url, reportCode: r.reportCode });
-      return res.status(400).json({ status: r.status || 'error', error: r.status || 'error' });
+      // Uso opcional por ?prefix (diagnóstico)
+      const prefix = String(req.query?.prefix || '').trim().toUpperCase()
+      if (!prefix) return res.status(400).json({ status: 'invalid-prefix', error: 'invalid-prefix' })
+      await conn.query('SET @o_status := NULL, @o_url := NULL, @o_code := NULL')
+      await conn.query('CALL sp_daSelectHomeLink(?, @o_status, @o_url, @o_code)', [prefix])
+      const [rows] = await conn.query('SELECT @o_status AS status, @o_url AS url, @o_code AS reportCode')
+      const r = rows?.[0] || {}
+      if (r.status === 'ok') return res.json({ status: 'ok', url: r.url, reportCode: r.reportCode })
+      return res.status(400).json({ status: r.status || 'error', error: r.status || 'error' })
     } finally {
-      conn.release();
+      conn.release()
     }
   } catch {
-    return res.status(500).json({ status: 'server-error', error: 'server-error' });
+    return res.status(500).json({ status: 'server-error', error: 'server-error' })
   }
-});
+})
 
-app.get('/reports/client-info', clientInfoHandler);
-app.get('/client-info', clientInfoHandler);
+app.get('/reports/client-info', clientInfoHandler)
+app.get('/client-info', clientInfoHandler)
 
-app.get('/reports/home', reportsHomeHandler);       
-app.get('/home', reportsHomeHandler);              
+app.get('/reports/home', reportsHomeHandler)
+app.get('/home', reportsHomeHandler)
 
-app.get('/reports/:reportCode', reportCodeHandler);  
+app.get('/reports/:reportCode', reportCodeHandler)
 
-const port = process.env.PORT ? Number(process.env.PORT) : 4001;
-app.listen(port, () => { console.log(`auth-service listening on :${port}`); });
+const port = process.env.PORT ? Number(process.env.PORT) : 4001
+app.listen(port, () => { console.log(`auth-service listening on :${port}`) })
