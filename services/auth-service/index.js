@@ -117,50 +117,51 @@ async function loginHandler(req, res) {
 
 async function reportsHomeHandler(req, res) {
   try {
-    const { prefix } = req.query
-    if (!prefix) return res.status(400).json({ status: 'invalid-prefix', error: 'invalid-prefix' })
-    const conn = await pool.getConnection()
+    const { prefix } = req.query;
+    if (!prefix) return res.status(400).json({ status: "invalid-prefix", error: "invalid-prefix" });
+    const conn = await pool.getConnection();
     try {
-      await conn.query('SET @o_status := NULL, @o_url := NULL, @o_code := NULL')
-      await conn.query('CALL sp_daSelectHomeLink(?, @o_status, @o_url, @o_code)', [prefix])
-      const [rows] = await conn.query('SELECT @o_status AS status, @o_url AS url, @o_code AS reportCode')
-      const r = rows?.[0] || {}
-      if (r.status === 'ok') return res.json({ status: 'ok', url: r.url, reportCode: r.reportCode })
-      return res.status(400).json({ status: r.status || 'error', error: r.status || 'error' })
+      await conn.query("SET @o_status := NULL, @o_url := NULL, @o_code := NULL");
+      await conn.query("CALL sp_daSelectHomeLink(?, @o_status, @o_url, @o_code)", [prefix]);
+      const [rows] = await conn.query("SELECT @o_status AS status, @o_url AS url, @o_code AS reportCode");
+      const r = rows?.[0] || {};
+      if (r.status === "ok") return res.json({ status: "ok", url: r.url, reportCode: r.reportCode });
+      return res.status(400).json({ status: r.status || "error", error: r.status || "error" });
     } finally {
-      conn.release()
+      conn.release();
     }
   } catch {
-    return res.status(500).json({ status: 'server-error', error: 'server-error' })
+    return res.status(500).json({ status: "server-error", error: "server-error" });
   }
 }
 
 async function reportCodeHandler(req, res) {
   try {
-    const { prefix } = req.query
-    const { reportCode } = req.params
-    if (!prefix) return res.status(400).json({ status: 'invalid-prefix', error: 'invalid-prefix' })
-    const conn = await pool.getConnection()
+    const { prefix } = req.query;
+    const { reportCode } = req.params;
+    if (!prefix) return res.status(400).json({ status: "invalid-prefix", error: "invalid-prefix" });
+    const conn = await pool.getConnection();
     try {
-      await conn.query('SET @o_status := NULL, @o_url := NULL')
-      await conn.query('CALL sp_daSelectLinkFor(?, ?, @o_status, @o_url)', [prefix, reportCode])
-      const [rows] = await conn.query('SELECT @o_status AS status, @o_url AS url')
-      const r = rows?.[0] || {}
-      if (r.status === 'ok') return res.json({ status: 'ok', url: r.url })
-      return res.status(400).json({ status: r.status || 'error', error: r.status || 'error' })
+      await conn.query("SET @o_status := NULL, @o_url := NULL");
+      await conn.query("CALL sp_daSelectLinkFor(?, ?, @o_status, @o_url)", [prefix, reportCode]);
+      const [rows] = await conn.query("SELECT @o_status AS status, @o_url AS url");
+      const r = rows?.[0] || {};
+      if (r.status === "ok") return res.json({ status: "ok", url: r.url });
+      return res.status(400).json({ status: r.status || "error", error: r.status || "error" });
     } finally {
-      conn.release()
+      conn.release();
     }
   } catch {
-    return res.status(500).json({ status: 'server-error', error: 'server-error' })
+    return res.status(500).json({ status: "server-error", error: "server-error" });
   }
 }
 
 async function clientInfoHandler(req, res) {
   try {
-    const { prefix } = req.query
-    if (!prefix) return res.status(400).json({ status: 'invalid-prefix', error: 'invalid-prefix' })
-    const conn = await pool.getConnection()
+    const { prefix } = req.query;
+    if (!prefix) return res.status(400).json({ status: "invalid-prefix", error: "invalid-prefix" });
+
+    const conn = await pool.getConnection();
     try {
       const [licRows] = await conn.query(
         `SELECT daClientName AS name, daStatus AS status, daExpiryDate AS expiryDate
@@ -169,8 +170,8 @@ async function clientInfoHandler(req, res) {
           ORDER BY LicenseID DESC
           LIMIT 1`,
         [prefix]
-      )
-      const lic = licRows?.[0] || null
+      );
+      const lic = licRows?.[0] || null;
 
       const [repRows] = await conn.query(
         `SELECT c.crReportCode AS code,
@@ -184,37 +185,40 @@ async function clientInfoHandler(req, res) {
             AND c.crIsActive = 1
           ORDER BY c.crIsDefault DESC, name`,
         [prefix]
-      )
+      );
 
       const reports = (repRows || []).map(r => ({
         code: r.code,
         name: r.name,
         isDefault: !!r.isDefault,
         url: r.url,
-      }))
-      const defaultReportCode = reports.find(r => r.isDefault)?.code || null
+      }));
+      const defaultReportCode = reports.find(r => r.isDefault)?.code || null;
 
-      if (!lic) return res.status(404).json({ status: 'not_found', error: 'not_found' })
+      if (!lic) return res.status(404).json({ status: "not_found", error: "not_found" });
 
       return res.json({
-        status: 'ok',
+        status: "ok",
         client: { prefix, name: lic.name || prefix },
         license: { status: lic.status, expiryDate: lic.expiryDate },
         defaultReportCode,
         reports
-      })
+      });
     } finally {
-      conn.release()
+      conn.release();
     }
   } catch {
-    return res.status(500).json({ status: 'server-error', error: 'server-error' })
+    return res.status(500).json({ status: "server-error", error: "server-error" });
   }
 }
 
-app.get('/reports/client-info', clientInfoHandler)
-app.get('/reports/home', reportsHomeHandler)
-app.get('/reports/:reportCode', reportCodeHandler)
-app.get('/home', reportsHomeHandler)
+app.get('/reports/client-info', clientInfoHandler); 
+app.get('/client-info', clientInfoHandler);        
 
-const port = process.env.PORT ? Number(process.env.PORT) : 4001
-app.listen(port, () => { console.log(`auth-service listening on :${port}`) })
+app.get('/reports/home', reportsHomeHandler);       
+app.get('/home', reportsHomeHandler);              
+
+app.get('/reports/:reportCode', reportCodeHandler);  
+
+const port = process.env.PORT ? Number(process.env.PORT) : 4001;
+app.listen(port, () => { console.log(`auth-service listening on :${port}`); });
