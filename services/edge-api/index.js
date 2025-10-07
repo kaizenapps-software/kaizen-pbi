@@ -31,14 +31,14 @@ app.use(cors({
 app.use('/auth', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true, legacyHeaders: false }));
 
 app.use('/auth', createProxyMiddleware({
-  target: AUTH_SERVICE_URL,
+  target: process.env.AUTH_SERVICE_URL,
   xfwd: true,
   changeOrigin: false,
   pathRewrite: { '^/auth': '' }  
 }));
 
 app.use('/reports', createProxyMiddleware({
-  target: AUTH_SERVICE_URL,
+  target: process.env.AUTH_SERVICE_URL,
   xfwd: true,
   changeOrigin: false,
 }));
