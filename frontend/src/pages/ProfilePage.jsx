@@ -86,7 +86,7 @@ export default function ProfilePage() {
         <section className="rounded-2xl border border-border bg-[var(--color-panel)] p-5">
           <h2 className="text-sm text-muted mb-1">Cliente</h2>
           <div className="text-lg font-semibold">{clientName}</div>
-          <div className="text-sm text-muted mt-1">Prefijo: <span className="font-medium">{prefix}</span></div>
+          <div className="text-sm text-muted mt-1">Código: <span className="font-medium">{prefix}</span></div>
 
           <div className="mt-5">
             <h3 className="text-sm text-muted mb-2">Reportes disponibles</h3>
@@ -100,7 +100,7 @@ export default function ProfilePage() {
                         className="inline-flex items-center gap-2 rounded-full border border-border px-3 py-1 text-sm">
                     <span className="opacity-80">{label}</span>
                     <span className="opacity-80">({label})</span>
-                    {isDef && <span className="ml-1 text-amber-400 text-[11px]">★ default</span>}
+                    {isDef && <span className="ml-1 text-amber-400 text-[11px]">★ Predeterminado</span>}
                   </span>
                 );
               })}
@@ -116,7 +116,7 @@ export default function ProfilePage() {
           <div className="text-sm text-muted mt-2">
             Estado: {statusBadge(data?.license?.status)}
             <span className="mx-2">·</span>
-            Expira: <span className="font-medium">{fmtDateES(data?.license?.expiryDate)}</span>
+            Expira el: <span className="font-medium">{fmtDateES(data?.license?.expiryDate)}</span>
           </div>
         </section>
       </div>
