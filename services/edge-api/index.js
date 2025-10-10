@@ -1,9 +1,9 @@
-const express = require('express')
-const helmet = require('helmet')
-const cors = require('cors')
-const morgan = require('morgan')
-const rateLimit = require('express-rate-limit')
-const { createProxyMiddleware } = require('http-proxy-middleware')
+import express from 'express'
+import helmet from 'helmet'
+import cors from 'cors'
+import morgan from 'morgan'
+import rateLimit from 'express-rate-limit'
+import { createProxyMiddleware } from 'http-proxy-middleware'
 
 const app = express()
 app.use(helmet({ contentSecurityPolicy: false }))

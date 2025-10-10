@@ -1,8 +1,9 @@
-const express = require('express')
-const helmet = require('helmet')
-const cors = require('cors')
-const crypto = require('crypto')
-const mysql = require('mysql2/promise')
+import express from 'express'
+import helmet from 'helmet'
+import cors from 'cors'
+import crypto from 'node:crypto'
+import mysql from 'mysql2/promise'
+import fs from 'node:fs'
 
 const app = express()
 app.use(helmet({ contentSecurityPolicy: false }))
@@ -19,7 +20,7 @@ const pool = mysql.createPool({
   connectionLimit: Number(process.env.MYSQL_POOL || 10),
   ssl: process.env.MYSQL_SSL_CA_PATH
     ? {
-        ca: require('fs').readFileSync(process.env.MYSQL_SSL_CA_PATH, 'utf8'),
+        ca: fs.readFileSync(process.env.MYSQL_SSL_CA_PATH, 'utf8'),
         rejectUnauthorized: String(process.env.MYSQL_SSL_REJECT_UNAUTHORIZED || 'true') === 'true'
       }
     : undefined
@@ -114,7 +115,7 @@ app.post(['/login', '/license/login'], async (req, res) => {
     } finally {
       conn.release()
     }
-  } catch (err) {
+  } catch {
     return res.status(500).json({ status: 'server-error', error: 'server-error' })
   }
 })
@@ -127,7 +128,7 @@ app.get('/reports/home', async (req, res) => {
     const out = await spResolveReport(conn, { mode: 'HOME', prefix })
     if (out.status === 'ok') return res.json({ status: 'ok', url: out.url, reportCode: out.report })
     return res.status(400).json({ status: out.status, error: out.status })
-  } catch (e) {
+  } catch {
     return res.status(500).json({ status: 'server-error', error: 'server-error' })
   } finally {
     conn.release()
@@ -143,7 +144,7 @@ app.get('/reports/:reportCode', async (req, res) => {
     const out = await spResolveReport(conn, { mode: 'BY_CODE', prefix, reportCode })
     if (out.status === 'ok') return res.json({ status: 'ok', url: out.url })
     return res.status(400).json({ status: out.status, error: out.status })
-  } catch (e) {
+  } catch {
     return res.status(500).json({ status: 'server-error', error: 'server-error' })
   } finally {
     conn.release()
@@ -224,7 +225,7 @@ app.post('/reports/options', async (req, res) => {
     } finally {
       conn.release()
     }
-  } catch (err) {
+  } catch {
     return res.status(500).json({ status: 'server-error', error: 'server-error' })
   }
 })
@@ -241,4 +242,3 @@ app.post('/__debug/hash', (req, res) => {
 
 const port = Number(process.env.PORT || 4001)
 app.listen(port, () => {})
-  
