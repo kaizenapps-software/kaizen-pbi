@@ -61,7 +61,7 @@ export default function Sidebar() {
             title="Cerrar sesión"
           >
             <span className="nav-icon"><LogOut size={18} /></span>
-            <span className="truncate">Salir</span>
+            <span className="truncate">Cerrar sesión</span>
           </button>
         </nav>
       </aside>
