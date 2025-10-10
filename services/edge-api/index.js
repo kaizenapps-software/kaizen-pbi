@@ -1,94 +1,53 @@
-import 'dotenv/config';
-import express from 'express';
-import helmet from 'helmet';
-import cors from 'cors';
-import morgan from 'morgan';
-import rateLimit from 'express-rate-limit';
-import { createProxyMiddleware } from 'http-proxy-middleware';
+const express = require('express')
+const helmet = require('helmet')
+const cors = require('cors')
+const morgan = require('morgan')
+const rateLimit = require('express-rate-limit')
+const { createProxyMiddleware } = require('http-proxy-middleware')
 
-const {
-  PORT = '4002',
-  CORS_ORIGIN = '',
-  AUTH_SERVICE_URL = 'http://127.0.0.1:4001',
-} = process.env;
+const app = express()
+app.use(helmet({ contentSecurityPolicy: false }))
+app.use(morgan('tiny'))
 
-const app = express();
-
-app.disable('x-powered-by');
-app.set('trust proxy', ['loopback','linklocal','uniquelocal']);
-app.use(helmet({ contentSecurityPolicy: false }));
-app.use(morgan('tiny'));
-
-const allowList = CORS_ORIGIN.split(',').map(s => s.trim()).filter(Boolean);
+const origins = String(process.env.CORS_ORIGIN || '').split(',').map(s => s.trim()).filter(Boolean)
 app.use(cors({
-  origin(origin, cb) {
-    if (!origin || allowList.includes(origin)) return cb(null, true);
-    return cb(new Error('CORS blocked'), false);
+  origin: (origin, cb) => {
+    if (!origin || origins.length === 0 || origins.includes(origin)) return cb(null, true)
+    return cb(new Error('CORS'), false)
   },
-  credentials: true,
-}));
+  credentials: true
+}))
+app.use(express.json({ limit: '1mb' }))
 
-app.use('/auth', rateLimit({
-  windowMs: 60_000,
+const AUTH_SERVICE_URL = process.env.AUTH_SERVICE_URL || 'http://127.0.0.1:4001'
+
+const limiter = rateLimit({
+  windowMs: 60 * 1000,
   max: 60,
   standardHeaders: true,
-  legacyHeaders: false,
-}));
+  legacyHeaders: false
+})
+app.use('/auth', limiter)
 
-app.use('/auth', createProxyMiddleware({
+const authProxy = createProxyMiddleware({
   target: AUTH_SERVICE_URL,
+  changeOrigin: true,
   xfwd: true,
-  changeOrigin: false,
-  pathRewrite: { '^/auth': '' },
-  logLevel: 'warn',
-}));
+  pathRewrite: { '^/auth': '' }
+})
 
 const reportsProxy = createProxyMiddleware({
   target: AUTH_SERVICE_URL,
-  xfwd: true,
-  changeOrigin: false,
-  logLevel: 'debug',
-  onProxyReq(proxyReq, req) {
-    console.log('[edge→auth]', req.method, req.originalUrl, '→', AUTH_SERVICE_URL + req.originalUrl);
-  },
-  onProxyRes(proxyRes, req) {
-    console.log('[auth→edge]', req.method, req.originalUrl, 'status=', proxyRes.statusCode);
-  },
-  onError(err, req, res) {
-    console.error('[proxy error /reports]', err?.code || err?.message || err);
-    if (!res.headersSent) {
-      res.status(502).json({ error: 'upstream-failed' });
-    }
-  },
-});
+  changeOrigin: true,
+  xfwd: true
+})
 
-app.all(['/reports', '/reports/*'], (req, res, next) => {
-  console.log('[edge] HIT /reports -', req.method, req.originalUrl);
-  return reportsProxy(req, res, next);
-});
+app.get('/healthz', (req, res) => res.json({ ok: true }))
 
-app.get('/__diag/ping-options', async (_req, res) => {
-  try {
-    const r = await fetch(`${AUTH_SERVICE_URL}/reports/options`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ license: 'TEST-0000-0000-0000' }),
-  });
-    const text = await r.text().catch(() => '');
-    res.status(200).type('text').send(`status=${r.status}\n${text}`);
-  } catch (e) {
-    res.status(500).type('text').send(String(e?.stack || e));
-  }
-});
+app.all(['/auth', '/auth/*'], authProxy)
+app.all(['/reports', '/reports/*'], reportsProxy)
 
-app.get('/health', (_req, res) => res.type('text').send('ok'));
+app.use((req, res) => res.status(404).json({ error: 'not-found' }))
 
-app.use((req, _res, next) => {
-  console.warn('[edge] no match ->', req.method, req.originalUrl);
-  next();
-});
-app.use((_req, res) => res.status(404).json({ error: 'not-found' }));
-
-app.listen(Number(PORT), () => {
-  console.log(`[edge] listening on :${PORT} -> auth: ${AUTH_SERVICE_URL}`);
-});
+const port = Number(process.env.PORT || 4002)
+app.listen(port, () => {})
