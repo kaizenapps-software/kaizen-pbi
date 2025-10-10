@@ -94,7 +94,7 @@ export default function ProfilePage() {
               {reports.length === 0 && <span className="text-sm text-muted">—</span>}
               {reports.map(r => {
                 const label = r.name || r.code;
-                const isDef = r.code === defCode || r.isDefault;
+                /*const isDef = r.code === defCode || r.isDefault;*/
                 return (
                   <span key={r.code}
                         className="inline-flex items-center gap-2 rounded-full border border-border px-3 py-1 text-sm">
