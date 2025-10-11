@@ -1,225 +1,215 @@
+import 'dotenv/config'
 import express from 'express'
 import helmet from 'helmet'
 import cors from 'cors'
-import crypto from 'node:crypto'
-import mysql from 'mysql2/promise'
-import fs from 'node:fs'
+import crypto from 'crypto'
+import fs from 'fs'
+import { createPool } from 'mysql2/promise'
 
 const app = express()
+app.disable('x-powered-by')
 app.use(helmet({ contentSecurityPolicy: false }))
 app.use(cors({ origin: true, credentials: true }))
 app.use(express.json({ limit: '1mb' }))
 
-const pool = mysql.createPool({
-  host: process.env.MYSQL_HOST,
-  port: Number(process.env.MYSQL_PORT || 3306),
-  user: process.env.MYSQL_USER,
-  password: process.env.MYSQL_PASSWORD,
-  database: process.env.MYSQL_DB,
-  waitForConnections: true,
-  connectionLimit: Number(process.env.MYSQL_POOL || 10),
-  ssl: process.env.MYSQL_SSL_CA_PATH
-    ? {
-        ca: fs.readFileSync(process.env.MYSQL_SSL_CA_PATH, 'utf8'),
-        rejectUnauthorized: String(process.env.MYSQL_SSL_REJECT_UNAUTHORIZED || 'true') === 'true'
-      }
-    : undefined
+const {
+  MYSQL_HOST, MYSQL_PORT, MYSQL_USER, MYSQL_PASSWORD, MYSQL_DB,
+  AUTH_PEPPER, MYSQL_SSL_CA_PATH, MYSQL_SSL_REJECT_UNAUTHORIZED,
+  DEBUG_AUTH,
+} = process.env
+
+const ssl = MYSQL_SSL_CA_PATH
+  ? { ca: fs.readFileSync(MYSQL_SSL_CA_PATH), rejectUnauthorized: String(MYSQL_SSL_REJECT_UNAUTHORIZED || 'true').toLowerCase() !== 'false' }
+  : undefined
+
+const pool = createPool({
+  host: MYSQL_HOST,
+  port: MYSQL_PORT ? Number(MYSQL_PORT) : 3306,
+  user: MYSQL_USER,
+  password: MYSQL_PASSWORD || undefined,
+  database: MYSQL_DB,
+  connectionLimit: 8,
+  namedPlaceholders: true,
+  ...(ssl ? { ssl } : {}),
 })
 
-const LICENSE_RE = /^([A-Za-z]{2,6})-([A-F0-9]{4}-){3}[A-F0-9]{4}$/i
+const RAW_PEP = AUTH_PEPPER || ''
+const PEP = RAW_PEP.trim().replace(/["']/g, '').replace(/[\r\n\t\u200B-\u200D\uFEFF]/g, '')
+if (DEBUG_AUTH === '1') console.log('[auth] PEP(hex)=', Buffer.from(PEP, 'utf8').toString('hex'))
 
-function normalizePepper(s) {
-  if (!s) return ''
-  return String(s).trim().replace(/["']/g, '').replace(/\r|\n|\t/g, '').replace(/\u200B/g, '')
-}
-function canonLicense(raw) {
-  if (!raw) return null
-  const up = String(raw).toUpperCase().trim()
-  if (!LICENSE_RE.test(up)) return null
-  return up
-}
-function sha256Hex(input) {
-  return crypto.createHash('sha256').update(input).digest('hex')
-}
-function licenseHash(canon, pepperEnv) {
-  const pep = normalizePepper(pepperEnv || '')
-  return sha256Hex(pep + canon).toLowerCase()
+const sha256HexPeppered = (v) => crypto.createHash('sha256').update(PEP + v).digest('hex')
+const extractPrefix = (license) => {
+  const m = /^([A-Za-z]{2,6})-([A-F0-9]{4})-([A-F0-9]{4})-([A-F0-9]{4})-([A-F0-9]{4})$/i.exec(String(license).trim())
+  return m ? m[1].toUpperCase() : null
 }
 
-async function callSpWithOut(conn, callSql, inParams, outMap) {
-  const assigns = Object.values(outMap).map(v => `SET ${v}=NULL`).join('; ')
-  await conn.query(assigns || 'SELECT 1')
-  await conn.query(callSql, inParams)
-  const [rows] = await conn.query(
-    `SELECT ${Object.entries(outMap).map(([k, v]) => `${v} AS ${k}`).join(', ')}`
-  )
-  return rows[0] || {}
-}
 async function spLoginAuditLock(conn, { prefix, licenseId, ok, reason, ip, ua }) {
-  const res = await callSpWithOut(
-    conn,
-    'CALL spLoginAuditLock(?,?,?,?,?,?,@o_locked,@o_until)',
-    [prefix, licenseId || null, ok ? 1 : 0, reason, ip || null, ua || null],
-    { locked: '@o_locked', until: '@o_until' }
-  )
-  return { locked: Number(res.locked || 0), until: res.until }
-}
-async function spResolveReport(conn, { mode, prefix, reportCode }) {
-  const res = await callSpWithOut(
-    conn,
-    'CALL spResolveReport(?,?,?,@o_status,@o_url,@o_report)',
-    [mode, prefix, reportCode || null],
-    { status: '@o_status', url: '@o_url', report: '@o_report' }
-  )
-  return res
+  await conn.query('SET @o_locked := NULL, @o_until := NULL')
+  await conn.query('CALL spLoginAuditLock(?,?,?,?,?,?,@o_locked,@o_until)', [
+    prefix, licenseId || null, ok ? 1 : 0, reason, ip || null, ua || null
+  ])
+  const [rows] = await conn.query('SELECT @o_locked AS locked, @o_until AS until')
+  const r = rows?.[0] || {}
+  return { locked: Number(r.locked || 0), until: r.until || null }
 }
 
-app.get('/healthz', (req, res) => res.json({ ok: true }))
+app.get('/healthz', (_req, res) => res.status(200).json({ ok: true }))
 
-app.post(['/login', '/license/login'], async (req, res) => {
+app.post('/login', loginHandler)
+app.post('/license/login', loginHandler)
+
+async function loginHandler(req, res) {
   try {
     const { license } = req.body || {}
     if (!license) return res.status(400).json({ status: 'missing-license', error: 'missing-license' })
-    const canon = canonLicense(license)
-    if (!canon) return res.status(400).json({ status: 'invalid-license', error: 'invalid-license' })
-    const prefix = canon.match(LICENSE_RE)[1].toUpperCase()
-    const hash = licenseHash(canon, process.env.AUTH_PEPPER)
+    const prefix = extractPrefix(license)
+    if (!prefix) return res.status(400).json({ status: 'invalid-license', error: 'invalid-license' })
+
+    const canon = String(license).trim().toUpperCase()
+    const licenseHash = sha256HexPeppered(canon).toLowerCase()
+    if (DEBUG_AUTH === '1') console.log('[auth] /auth/login canon=', canon, 'hash=', licenseHash)
 
     const conn = await pool.getConnection()
     try {
       const [rows] = await conn.query(
-        'SELECT LicenseID, daClientPrefix, daStatus, daExpiryDate FROM daDashboard WHERE daLicenseHash=? LIMIT 1',
-        [hash]
+        `SELECT LicenseID, daClientPrefix, daStatus, daExpiryDate,
+                (daExpiryDate < CURDATE()) AS isExpired
+           FROM daDashboard
+          WHERE daLicenseHash = ?
+          ORDER BY LicenseID DESC
+          LIMIT 1`,
+        [licenseHash]
       )
-      const row = rows[0]
-      if (!row || row.daClientPrefix !== prefix) {
-        const audit = await spLoginAuditLock(conn, { prefix, licenseId: null, ok: 0, reason: 'mismatch_or_not_found', ip: req.ip, ua: req.get('user-agent') })
-        if (audit.locked) return res.status(429).json({ status: 'rate-limited', error: 'rate-limited', until: audit.until })
-        return res.status(401).json({ status: 'mismatch_or_not_found', error: 'mismatch_or_not_found' })
+
+      const found = rows?.[0]
+      let status = 'mismatch_or_not_found'
+      let licId = null
+
+      if (found && found.daClientPrefix === prefix) {
+        licId = found.LicenseID
+        if (found.daStatus !== 'active') status = found.daStatus
+        else if (Boolean(found.isExpired)) {
+          await conn.query('UPDATE daDashboard SET daStatus="expired" WHERE LicenseID=?', [found.LicenseID])
+          status = 'expired'
+        } else {
+          status = 'ok'
+        }
       }
-      if (row.daStatus !== 'active') {
-        const audit = await spLoginAuditLock(conn, { prefix, licenseId: row.LicenseID, ok: 0, reason: row.daStatus, ip: req.ip, ua: req.get('user-agent') })
+
+      if (status === 'ok') {
+        await spLoginAuditLock(conn, { prefix, licenseId: licId, ok: 1, reason: 'ok', ip: req.ip, ua: req.get('user-agent') })
+        return res.json({ status: 'ok', prefix })
+      } else {
+        const audit = await spLoginAuditLock(conn, { prefix, licenseId: licId, ok: 0, reason: status, ip: req.ip, ua: req.get('user-agent') })
         if (audit.locked) return res.status(429).json({ status: 'rate-limited', error: 'rate-limited', until: audit.until })
-        return res.status(401).json({ status: row.daStatus, error: row.daStatus })
+        return res.status(401).json({ status, error: status })
       }
-      const today = new Date(); today.setHours(0,0,0,0)
-      const exp = new Date(row.daExpiryDate)
-      if (exp < today) {
-        await conn.query('UPDATE daDashboard SET daStatus="expired" WHERE LicenseID=?', [row.LicenseID])
-        const audit = await spLoginAuditLock(conn, { prefix, licenseId: row.LicenseID, ok: 0, reason: 'expired', ip: req.ip, ua: req.get('user-agent') })
-        if (audit.locked) return res.status(429).json({ status: 'rate-limited', error: 'rate-limited', until: audit.until })
-        return res.status(401).json({ status: 'expired', error: 'expired' })
-      }
-      await spLoginAuditLock(conn, { prefix, licenseId: row.LicenseID, ok: 1, reason: 'ok', ip: req.ip, ua: req.get('user-agent') })
-      return res.json({ status: 'ok', prefix })
     } finally {
       conn.release()
     }
   } catch {
     return res.status(500).json({ status: 'server-error', error: 'server-error' })
   }
-})
+}
 
-app.get('/reports/home', async (req, res) => {
-  const prefix = String(req.query.prefix || '').toUpperCase().trim()
-  if (!prefix) return res.status(400).json({ status: 'missing-prefix', error: 'missing-prefix' })
-  const conn = await pool.getConnection()
-  try {
-    const out = await spResolveReport(conn, { mode: 'HOME', prefix })
-    if (out.status === 'ok') return res.json({ status: 'ok', url: out.url, reportCode: out.report })
-    return res.status(400).json({ status: out.status, error: out.status })
-  } catch {
-    return res.status(500).json({ status: 'server-error', error: 'server-error' })
-  } finally {
-    conn.release()
-  }
-})
-
-app.get('/reports/:reportCode', async (req, res) => {
-  const prefix = String(req.query.prefix || '').toUpperCase().trim()
-  const reportCode = String(req.params.reportCode || '').trim()
-  if (!prefix || !reportCode) return res.status(400).json({ status: 'missing-params', error: 'missing-params' })
-  const conn = await pool.getConnection()
-  try {
-    const out = await spResolveReport(conn, { mode: 'BY_CODE', prefix, reportCode })
-    if (out.status === 'ok') return res.json({ status: 'ok', url: out.url })
-    return res.status(400).json({ status: out.status, error: out.status })
-  } catch {
-    return res.status(500).json({ status: 'server-error', error: 'server-error' })
-  } finally {
-    conn.release()
-  }
-})
+async function resolveLicense(conn, canonHashLower) {
+  const [rows] = await conn.query(
+    `SELECT LicenseID, daClientPrefix AS prefix, daStatus, daExpiryDate,
+            (daExpiryDate < CURDATE()) AS isExpired
+       FROM daDashboard
+      WHERE daLicenseHash = ?
+      ORDER BY LicenseID DESC
+      LIMIT 1`,
+    [canonHashLower]
+  )
+  return rows?.[0] || null
+}
 
 app.post('/reports/options', async (req, res) => {
   try {
-    const { license } = req.body || {}
+    const license = String(req.body?.license || '').trim().toUpperCase()
+    if (DEBUG_AUTH === '1') console.log('[auth] /reports/options license=', license)
     if (!license) return res.status(400).json({ status: 'missing-license', error: 'missing-license' })
-    const canon = canonLicense(license)
-    if (!canon) return res.status(400).json({ status: 'invalid-license', error: 'invalid-license' })
-    const prefix = canon.match(LICENSE_RE)[1].toUpperCase()
-    const hash = licenseHash(canon, process.env.AUTH_PEPPER)
+
+    const licenseHash = sha256HexPeppered(license).toLowerCase()
+    if (DEBUG_AUTH === '1') console.log('[auth] /reports/options hash=', licenseHash)
 
     const conn = await pool.getConnection()
     try {
       const [rows] = await conn.query(
-        'SELECT LicenseID, daClientPrefix, daStatus, daExpiryDate, daAllowAll FROM daDashboard WHERE daLicenseHash=? LIMIT 1',
-        [hash]
+        `SELECT LicenseID, daClientPrefix AS prefix, daStatus, daExpiryDate,
+                daAllowAll, (daExpiryDate < CURDATE()) AS isExpired
+           FROM daDashboard
+          WHERE daLicenseHash = ?
+          ORDER BY LicenseID DESC
+          LIMIT 1`,
+        [licenseHash]
       )
-      const row = rows[0]
-      if (!row || row.daClientPrefix !== prefix) {
-        const audit = await spLoginAuditLock(conn, { prefix, licenseId: null, ok: 0, reason: 'mismatch_or_not_found', ip: req.ip, ua: req.get('user-agent') })
+      const lic = rows?.[0]
+      if (!lic) {
+        const audit = await spLoginAuditLock(conn, { prefix: null, licenseId: null, ok: 0, reason: 'mismatch_or_not_found', ip: req.ip, ua: req.get('user-agent') })
         if (audit.locked) return res.status(429).json({ status: 'rate-limited', error: 'rate-limited', until: audit.until })
         return res.status(401).json({ status: 'mismatch_or_not_found', error: 'mismatch_or_not_found' })
       }
-      if (row.daStatus !== 'active') {
-        const audit = await spLoginAuditLock(conn, { prefix, licenseId: row.LicenseID, ok: 0, reason: row.daStatus, ip: req.ip, ua: req.get('user-agent') })
+      if (lic.daStatus !== 'active') {
+        const audit = await spLoginAuditLock(conn, { prefix: lic.prefix, licenseId: lic.LicenseID, ok: 0, reason: lic.daStatus, ip: req.ip, ua: req.get('user-agent') })
         if (audit.locked) return res.status(429).json({ status: 'rate-limited', error: 'rate-limited', until: audit.until })
-        return res.status(401).json({ status: row.daStatus, error: row.daStatus })
+        return res.status(401).json({ status: lic.daStatus, error: lic.daStatus })
       }
-      const today = new Date(); today.setHours(0,0,0,0)
-      const exp = new Date(row.daExpiryDate)
-      if (exp < today) {
-        await conn.query('UPDATE daDashboard SET daStatus="expired" WHERE LicenseID=?', [row.LicenseID])
-        const audit = await spLoginAuditLock(conn, { prefix, licenseId: row.LicenseID, ok: 0, reason: 'expired', ip: req.ip, ua: req.get('user-agent') })
+      if (lic.isExpired) {
+        await conn.query('UPDATE daDashboard SET daStatus="expired" WHERE LicenseID=?', [lic.LicenseID])
+        const audit = await spLoginAuditLock(conn, { prefix: lic.prefix, licenseId: lic.LicenseID, ok: 0, reason: 'expired', ip: req.ip, ua: req.get('user-agent') })
         if (audit.locked) return res.status(429).json({ status: 'rate-limited', error: 'rate-limited', until: audit.until })
         return res.status(401).json({ status: 'expired', error: 'expired' })
       }
-      await spLoginAuditLock(conn, { prefix, licenseId: row.LicenseID, ok: 1, reason: 'ok', ip: req.ip, ua: req.get('user-agent') })
-      let reports = []
-      if (row.daAllowAll) {
-        const [r] = await conn.query(
-          `SELECT crReportCode AS code,
-                  COALESCE(NULLIF(crReportName,''), crReportCode) AS name,
-                  crEmbedUrl AS url,
-                  crIsDefault AS isDefault
-           FROM daClientReport
-           WHERE crClientPrefix=? AND crIsActive=1
-           ORDER BY crReportCode`, [prefix]
-        )
-        reports = r
-      } else {
-        const [r] = await conn.query(
+
+      await spLoginAuditLock(conn, { prefix: lic.prefix, licenseId: lic.LicenseID, ok: 1, reason: 'ok', ip: req.ip, ua: req.get('user-agent') })
+
+      let repRows
+      if (lic.daAllowAll) {
+        ;[repRows] = await conn.query(
           `SELECT c.crReportCode AS code,
-                  COALESCE(NULLIF(c.crReportName,''), c.crReportCode) AS name,
-                  c.crEmbedUrl AS url,
-                  c.crIsDefault AS isDefault
-           FROM daLicenseReport lr
-           JOIN daClientReport c
-             ON c.crReportCode=lr.lrReportCode
-            AND c.crClientPrefix=?
-            AND c.crIsActive=1
-           WHERE lr.LicenseID=?
-           ORDER BY c.crReportCode`, [prefix, row.LicenseID]
+                  COALESCE(c.crReportName, r.daReportName, c.crReportCode) AS name,
+                  c.crIsDefault AS isDefault,
+                  c.crEmbedUrl  AS url
+             FROM daClientReport c
+        LEFT JOIN daReportCatalog r ON r.daReportCode = c.crReportCode
+            WHERE c.crClientPrefix = ?
+              AND c.crIsActive = 1
+            ORDER BY c.crIsDefault DESC, name`,
+          [lic.prefix]
         )
-        reports = r
+      } else {
+        ;[repRows] = await conn.query(
+          `SELECT c.crReportCode AS code,
+                  COALESCE(c.crReportName, r.daReportName, c.crReportCode) AS name,
+                  c.crIsDefault AS isDefault,
+                  c.crEmbedUrl  AS url
+             FROM daLicenseReport lr
+             JOIN daClientReport  c
+               ON c.crClientPrefix = ?
+              AND c.crReportCode   = lr.lrReportCode
+              AND c.crIsActive     = 1
+        LEFT JOIN daReportCatalog r ON r.daReportCode = c.crReportCode
+            WHERE lr.LicenseID     = ?
+            ORDER BY c.crIsDefault DESC, name`,
+          [lic.prefix, lic.LicenseID]
+        )
       }
-      const def = reports.find(x => x.isDefault === 1) || null
+
+      const reports = (repRows || []).map(r => ({
+        code: r.code,
+        name: r.name,
+        url:  r.url,
+        isDefault: !!r.isDefault
+      }))
+      const defaultReportCode = reports.find(r => r.isDefault)?.code || reports[0]?.code || null
+
       return res.json({
         status: 'ok',
-        client: { prefix },
-        license: { status: 'active', expiryDate: row.daExpiryDate, allowAll: !!row.daAllowAll },
-        defaultReportCode: def ? def.code : null,
+        client:  { prefix: lic.prefix },
+        license: { status: lic.daStatus, expiryDate: lic.daExpiryDate, allowAll: !!lic.daAllowAll },
+        defaultReportCode,
         reports
       })
     } finally {
@@ -230,18 +220,121 @@ app.post('/reports/options', async (req, res) => {
   }
 })
 
-app.post('/__debug/hash', (req, res) => {
-  if (String(process.env.DEBUG_AUTH || '0') !== '1') return res.status(404).json({ error: 'not-found' })
-  const { license } = req.body || {}
-  const canon = canonLicense(license)
-  if (!canon) return res.status(400).json({ error: 'invalid-license' })
-  const pep = normalizePepper(process.env.AUTH_PEPPER || '')
-  const hash = licenseHash(canon, process.env.AUTH_PEPPER)
-  return res.json({ canon, hash, pepHex: Buffer.from(pep, 'utf8').toString('hex') })
+app.get('/reports/client-info', async (req, res) => {
+  try {
+    const prefix = String(req.query?.prefix || '').trim().toUpperCase()
+    if (!prefix) return res.status(400).json({ status: 'invalid-prefix', error: 'invalid-prefix' })
+
+    const conn = await pool.getConnection()
+    try {
+      const [licRows] = await conn.query(
+        `SELECT daClientName AS name, daStatus AS status, daExpiryDate AS expiryDate
+           FROM daDashboard
+          WHERE daClientPrefix = ?
+          ORDER BY LicenseID DESC
+          LIMIT 1`,
+        [prefix]
+      )
+      const lic = licRows?.[0] || null
+
+      const [repRows] = await conn.query(
+        `SELECT c.crReportCode AS code,
+                IFNULL(c.crReportName, IFNULL(r.daReportName, c.crReportCode)) AS name,
+                c.crIsDefault AS isDefault,
+                c.crIsActive  AS isActive,
+                c.crEmbedUrl  AS url
+           FROM daClientReport c
+      LEFT JOIN daReportCatalog r ON r.daReportCode = c.crReportCode
+          WHERE c.crClientPrefix = ?
+            AND c.crIsActive = 1
+          ORDER BY c.crIsDefault DESC, name`,
+        [prefix]
+      )
+
+      const reports = (repRows || []).map(r => ({
+        code: r.code,
+        name: r.name,
+        isDefault: !!r.isDefault,
+        url: r.url,
+      }))
+      const defaultReportCode = reports.find(r => r.isDefault)?.code || null
+
+      if (!lic) return res.status(404).json({ status: 'not_found', error: 'not_found' })
+
+      return res.json({
+        status: 'ok',
+        client: { prefix, name: lic.name || prefix },
+        license: { status: lic.status, expiryDate: lic.expiryDate },
+        defaultReportCode,
+        reports
+      })
+    } finally {
+      conn.release()
+    }
+  } catch {
+    return res.status(500).json({ status: 'server-error', error: 'server-error' })
+  }
 })
 
-app.get('/me', (req, res) => res.json({ ok: true }))
-app.post('/logout', (req, res) => res.status(204).end())
+app.get('/reports/home', async (req, res) => {
+  try {
+    const prefix = String(req.query?.prefix || '').trim().toUpperCase()
+    if (!prefix) return res.status(400).json({ status: 'invalid-prefix', error: 'invalid-prefix' })
+    const conn = await pool.getConnection()
+    try {
+      await conn.query('SET @o_status := NULL, @o_url := NULL, @o_code := NULL')
+      await conn.query('CALL spResolveReport(?, ?, NULL, @o_status, @o_url, @o_code)', ['HOME', prefix])
+      const [rows] = await conn.query('SELECT @o_status AS status, @o_url AS url, @o_code AS reportCode')
+      const r = rows?.[0] || {}
+      if (r.status === 'ok') return res.json({ status: 'ok', url: r.url, reportCode: r.reportCode })
+      return res.status(400).json({ status: r.status || 'error', error: r.status || 'error' })
+    } finally {
+      conn.release()
+    }
+  } catch {
+    return res.status(500).json({ status: 'server-error', error: 'server-error' })
+  }
+})
 
-const port = Number(process.env.PORT || 4001)
-app.listen(port, () => {})
+app.get('/reports/:reportCode', async (req, res) => {
+  try {
+    const prefix = String(req.query?.prefix || '').trim().toUpperCase()
+    const { reportCode } = req.params
+    if (!prefix) return res.status(400).json({ status: 'invalid-prefix', error: 'invalid-prefix' })
+    const conn = await pool.getConnection()
+    try {
+      await conn.query('SET @o_status := NULL, @o_url := NULL, @o_code := NULL')
+      await conn.query('CALL spResolveReport(?, ?, ?, @o_status, @o_url, @o_code)', ['BY_CODE', prefix, reportCode])
+      const [rows] = await conn.query('SELECT @o_status AS status, @o_url AS url, @o_code AS reportCode')
+      const r = rows?.[0] || {}
+      if (r.status === 'ok') return res.json({ status: 'ok', url: r.url })
+      return res.status(400).json({ status: r.status || 'error', error: r.status || 'error' })
+    } finally {
+      conn.release()
+    }
+  } catch {
+    return res.status(500).json({ status: 'server-error', error: 'server-error' })
+  }
+})
+
+if (DEBUG_AUTH === '1') {
+  app.post('/__debug/hash', (req, res) => {
+    const license = String(req.body?.license || '').trim().toUpperCase()
+    const hash = sha256HexPeppered(license).toLowerCase()
+    res.json({ canon: license, hash, pepHex: Buffer.from(PEP, 'utf8').toString('hex') })
+  })
+}
+
+const port = process.env.PORT ? Number(process.env.PORT) : 4001
+app.listen(port, () => {
+  console.log(`auth-service listening on :${port}`)
+  if (DEBUG_AUTH === '1') {
+    const out = []
+    app._router.stack.forEach(l => {
+      if (!l.route) return
+      const methods = Object.keys(l.route.methods).filter(Boolean).join(',')
+      out.push(`${methods.toUpperCase()} ${l.route.path}`)
+    })
+    console.log('[auth] routes:\n' + out.sort().map(s => '  ' + s).join('\n'))
+  }
+})

@@ -1,53 +1,94 @@
-import express from 'express'
-import helmet from 'helmet'
-import cors from 'cors'
-import morgan from 'morgan'
-import rateLimit from 'express-rate-limit'
-import { createProxyMiddleware } from 'http-proxy-middleware'
+import 'dotenv/config';
+import express from 'express';
+import helmet from 'helmet';
+import cors from 'cors';
+import morgan from 'morgan';
+import rateLimit from 'express-rate-limit';
+import { createProxyMiddleware } from 'http-proxy-middleware';
 
-const app = express()
-app.use(helmet({ contentSecurityPolicy: false }))
-app.use(morgan('tiny'))
+const {
+  PORT = '4002',
+  CORS_ORIGIN = '',
+  AUTH_SERVICE_URL = 'http://127.0.0.1:4001',
+} = process.env;
 
-const origins = String(process.env.CORS_ORIGIN || '').split(',').map(s => s.trim()).filter(Boolean)
+const app = express();
+
+app.disable('x-powered-by');
+app.set('trust proxy', ['loopback','linklocal','uniquelocal']);
+app.use(helmet({ contentSecurityPolicy: false }));
+app.use(morgan('tiny'));
+
+const allowList = CORS_ORIGIN.split(',').map(s => s.trim()).filter(Boolean);
 app.use(cors({
-  origin: (origin, cb) => {
-    if (!origin || origins.length === 0 || origins.includes(origin)) return cb(null, true)
-    return cb(new Error('CORS'), false)
+  origin(origin, cb) {
+    if (!origin || allowList.includes(origin)) return cb(null, true);
+    return cb(new Error('CORS blocked'), false);
   },
-  credentials: true
-}))
-app.use(express.json({ limit: '1mb' }))
+  credentials: true,
+}));
 
-const AUTH_SERVICE_URL = process.env.AUTH_SERVICE_URL || 'http://127.0.0.1:4001'
-
-const limiter = rateLimit({
-  windowMs: 60 * 1000,
+app.use('/auth', rateLimit({
+  windowMs: 60_000,
   max: 60,
   standardHeaders: true,
-  legacyHeaders: false
-})
-app.use('/auth', limiter)
+  legacyHeaders: false,
+}));
 
-const authProxy = createProxyMiddleware({
+app.use('/auth', createProxyMiddleware({
   target: AUTH_SERVICE_URL,
-  changeOrigin: true,
   xfwd: true,
-  pathRewrite: { '^/auth': '' }
-})
+  changeOrigin: false,
+  pathRewrite: { '^/auth': '' },
+  logLevel: 'warn',
+}));
 
 const reportsProxy = createProxyMiddleware({
   target: AUTH_SERVICE_URL,
-  changeOrigin: true,
-  xfwd: true
-})
+  xfwd: true,
+  changeOrigin: false,
+  logLevel: 'debug',
+  onProxyReq(proxyReq, req) {
+    console.log('[edge→auth]', req.method, req.originalUrl, '→', AUTH_SERVICE_URL + req.originalUrl);
+  },
+  onProxyRes(proxyRes, req) {
+    console.log('[auth→edge]', req.method, req.originalUrl, 'status=', proxyRes.statusCode);
+  },
+  onError(err, req, res) {
+    console.error('[proxy error /reports]', err?.code || err?.message || err);
+    if (!res.headersSent) {
+      res.status(502).json({ error: 'upstream-failed' });
+    }
+  },
+});
 
-app.get('/healthz', (req, res) => res.json({ ok: true }))
+app.all(['/reports', '/reports/*'], (req, res, next) => {
+  console.log('[edge] HIT /reports -', req.method, req.originalUrl);
+  return reportsProxy(req, res, next);
+});
 
-app.all(['/auth', '/auth/*'], authProxy)
-app.all(['/reports', '/reports/*'], reportsProxy)
+app.get('/__diag/ping-options', async (_req, res) => {
+  try {
+    const r = await fetch(`${AUTH_SERVICE_URL}/reports/options`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ license: 'TEST-0000-0000-0000' }),
+  });
+    const text = await r.text().catch(() => '');
+    res.status(200).type('text').send(`status=${r.status}\n${text}`);
+  } catch (e) {
+    res.status(500).type('text').send(String(e?.stack || e));
+  }
+});
 
-app.use((req, res) => res.status(404).json({ error: 'not-found' }))
+app.get('/health', (_req, res) => res.type('text').send('ok'));
 
-const port = Number(process.env.PORT || 4002)
-app.listen(port, () => {})
+app.use((req, _res, next) => {
+  console.warn('[edge] no match ->', req.method, req.originalUrl);
+  next();
+});
+app.use((_req, res) => res.status(404).json({ error: 'not-found' }));
+
+app.listen(Number(PORT), () => {
+  console.log(`[edge] listening on :${PORT} -> auth: ${AUTH_SERVICE_URL}`);
+});
