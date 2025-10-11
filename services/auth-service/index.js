@@ -240,5 +240,8 @@ app.post('/__debug/hash', (req, res) => {
   return res.json({ canon, hash, pepHex: Buffer.from(pep, 'utf8').toString('hex') })
 })
 
+app.get('/me', (req, res) => res.json({ ok: true }))
+app.post('/logout', (req, res) => res.status(204).end())
+
 const port = Number(process.env.PORT || 4001)
 app.listen(port, () => {})
