@@ -8,6 +8,7 @@ import RequireAuth from "./routes/RequireAuth";
 import BackForwardGuard from "./components/BackForwardGuard";
 import { AuthProvider } from "./auth/AuthContext";
 import ProfilePage from "./pages/ProfilePage.jsx";
+import ChatFab from "./components/Chatbox"; 
 
 function Placeholder({ title }) {
   return (
@@ -38,7 +39,15 @@ export default function App() {
         <Route
           element={
             <RequireAuth>
-              <AppShell />
+              <>
+                <AppShell />
+                <ChatFab
+                  apiBase={import.meta.env.VITE_API_BASE || "https://kaizen-pbi.onrender.com"}
+                  webBase="https://kaizenapps.net/gpt"
+                  label="Asistente"
+                  theme="dark"
+                />
+              </>
             </RequireAuth>
           }
         >
