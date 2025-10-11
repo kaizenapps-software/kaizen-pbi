@@ -325,6 +325,108 @@ if (DEBUG_AUTH === '1') {
   })
 }
 
+const { ASSISTANT_ID = '' } = process.env
+
+app.post('/assist/thread', async (req, res) => {
+  try {
+    const lic = String(req.body?.license || '').trim().toUpperCase()
+    if (!lic) return res.status(400).json({ error: 'missing-license' })
+
+    const prefix = extractPrefix(lic)
+    if (!prefix) return res.status(400).json({ error: 'invalid-license' })
+
+    const canon = lic
+    const licenseHash = sha256HexPeppered(canon).toLowerCase()
+
+    const conn = await pool.getConnection()
+    try {
+      const [rows] = await conn.query(
+        `SELECT LicenseID, daClientPrefix AS prefix, daClientName AS clientName,
+                daStatus, (daExpiryDate < CURDATE()) AS isExpired
+           FROM daDashboard
+          WHERE daLicenseHash = ?
+          ORDER BY LicenseID DESC
+          LIMIT 1`,
+        [licenseHash]
+      )
+      const licRow = rows?.[0]
+      if (!licRow || licRow.prefix !== prefix) return res.status(401).json({ error: 'mismatch_or_not_found' })
+      if (licRow.daStatus !== 'active') return res.status(401).json({ error: licRow.daStatus })
+      if (licRow.isExpired) {
+        await conn.query('UPDATE daDashboard SET daStatus="expired" WHERE LicenseID=?', [licRow.LicenseID])
+        return res.status(401).json({ error: 'expired' })
+      }
+
+      const [thrRows] = await conn.query(
+        `SELECT ctThreadID AS threadId, ctAssistantID AS assistantId
+           FROM daChatThread
+          WHERE ctClientPrefix = ?
+          LIMIT 1`, [prefix]
+      )
+      const existing = thrRows?.[0] || null
+
+      return res.json({
+        status: 'ok',
+        prefix,
+        clientName: licRow.clientName || prefix,
+        threadId: existing?.threadId || null,
+        assistantId: existing?.assistantId || ASSISTANT_ID || null
+      })
+    } finally {
+      conn.release()
+    }
+  } catch {
+    return res.status(500).json({ error: 'server-error' })
+  }
+})
+
+app.post('/assist/thread/save', async (req, res) => {
+  try {
+    const lic = String(req.body?.license || '').trim().toUpperCase()
+    const threadId = String(req.body?.threadId || '').trim()
+    const assistantId = String(req.body?.assistantId || '').trim() || ASSISTANT_ID
+    if (!lic || !threadId) return res.status(400).json({ error: 'missing-params' })
+
+    const prefix = extractPrefix(lic)
+    if (!prefix) return res.status(400).json({ error: 'invalid-license' })
+
+    const canon = lic
+    const licenseHash = sha256HexPeppered(canon).toLowerCase()
+
+    const conn = await pool.getConnection()
+    try {
+      const [rows] = await conn.query(
+        `SELECT LicenseID, daClientPrefix AS prefix
+           FROM daDashboard
+          WHERE daLicenseHash = ?
+          ORDER BY LicenseID DESC
+          LIMIT 1`,
+        [licenseHash]
+      )
+      const licRow = rows?.[0]
+      if (!licRow || licRow.prefix !== prefix) return res.status(401).json({ error: 'mismatch_or_not_found' })
+
+      await conn.query(
+        `INSERT INTO daChatThread (ctClientPrefix, ctLicenseID, ctThreadID, ctAssistantID)
+         VALUES (?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE
+           ctLicenseID = VALUES(ctLicenseID),
+           ctThreadID = VALUES(ctThreadID),
+           ctAssistantID = VALUES(ctAssistantID)`,
+        [prefix, licRow.LicenseID, threadId, assistantId || null]
+      )
+      return res.json({ status: 'ok' })
+    } finally {
+      conn.release()
+    }
+  } catch {
+    return res.status(500).json({ error: 'server-error' })
+  }
+})
+
+/*app.get('/me', (_req, res) => res.json({ ok: true }))*/
+app.post('/logout', (_req, res) => res.status(204).end())
+
 const port = process.env.PORT ? Number(process.env.PORT) : 4001
 app.listen(port, () => {
   console.log(`auth-service listening on :${port}`)
