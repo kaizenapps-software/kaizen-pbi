@@ -54,6 +54,20 @@ function getSS(key, def = '') {
   try { return sessionStorage.getItem(key) || def } catch { return def }
 }
 
+function getLicense() {
+  const direct = getSS('kaizen.license')
+  if (direct) return direct
+  try {
+    const raw = sessionStorage.getItem('kz-auth') || localStorage.getItem('kz-auth')
+    if (raw) {
+      const obj = JSON.parse(raw)
+      if (obj && obj.license) return obj.license
+    }
+  } catch {}
+  const m = String(location.hash || location.search || '').match(/(?:^|[?#&])license=([A-Z0-9-]{10,})/)
+  return m ? decodeURIComponent(m[1]).toUpperCase() : ''
+}
+
 async function resolveThread(apiBase, license) {
   const r = await fetch(`${apiBase.replace(/\/+$/,'')}/auth/assist/thread`, {
     method: 'POST',
@@ -94,12 +108,12 @@ export default function ChatFab({
     if (!next) return
 
     try {
-      const license = getSS('kaizen.license')
+      const license = getLicense()
+      if (!license) throw new Error('Falta la licencia')
+
       const prefix  = getSS('kaizen.prefix')
       const client  = getSS('kaizen.clientName')
       const report  = getSS('kaizen.reportCode')
-
-      if (!license) throw new Error('Falta la licencia en sessionStorage (kaizen.license)')
 
       const info = await resolveThread(apiBase, license)
       const q = new URLSearchParams({
@@ -112,7 +126,9 @@ export default function ChatFab({
         app: 'https://kaizenapps.net/app',
         mobile: 'https://kaizenapps.net/mobile',
       })
-      setSrc(`${webBase.replace(/\/+$/,'')}/widget.html#${q.toString()}`)
+      const base = webBase.replace(/\/+$/,'')
+      const url = /\.html?$/i.test(base) ? `${base}#${q.toString()}` : `${base}/#${q.toString()}`
+      setSrc(url)
     } catch (e) {
       setSrc('')
       setError(e?.message || String(e))
@@ -127,13 +143,11 @@ export default function ChatFab({
         <svg viewBox="0 0 24 24" style={styles.icon}><path d="M12 3c-5 0-9 3.6-9 8 0 2.1.9 4 2.5 5.4L5 21l4-1.7c.9.3 1.9.4 3 .4 5 0 9-3.6 9-8s-4-8-9-8z"/></svg>
         <span>{label}</span>
       </button>
-
       {open && src && (
         <div style={stylePanel}>
           <iframe title="Kaizen Chat" allow="clipboard-read; clipboard-write; microphone; camera" src={src} style={styleIframe} />
         </div>
       )}
-
       {error && <div style={styles.error}>{error}</div>}
     </>
   )

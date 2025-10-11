@@ -8,7 +8,7 @@ import RequireAuth from "./routes/RequireAuth";
 import BackForwardGuard from "./components/BackForwardGuard";
 import { AuthProvider } from "./auth/AuthContext";
 import ProfilePage from "./pages/ProfilePage.jsx";
-import ChatFab from "./components/Chatbox"; 
+import ChatFab from "./components/ChatFab";
 
 function Placeholder({ title }) {
   return (
@@ -33,9 +33,7 @@ export default function App() {
             </>
           }
         />
-
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
-
         <Route
           element={
             <RequireAuth>
@@ -55,7 +53,6 @@ export default function App() {
           <Route path="/reports/costos" element={<Placeholder title="Costos" />} />
           <Route path="/profile" element={<ProfilePage />} />
         </Route>
-
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </AuthProvider>
