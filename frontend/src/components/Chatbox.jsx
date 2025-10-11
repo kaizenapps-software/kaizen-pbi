@@ -55,12 +55,12 @@ function getSS(key, def = '') {
 }
 
 function getLicense() {
-  const direct = getSS('kaizen.license')
-  if (direct) return direct
+  const v = getSS('kaizen.license')
+  if (v) return v
   try {
-    const raw = sessionStorage.getItem('kz-auth') || localStorage.getItem('kz-auth')
-    if (raw) {
-      const obj = JSON.parse(raw)
+    const js = sessionStorage.getItem('kz-auth') || localStorage.getItem('kz-auth')
+    if (js) {
+      const obj = JSON.parse(js)
       if (obj && obj.license) return obj.license
     }
   } catch {}
@@ -81,7 +81,7 @@ async function resolveThread(apiBase, license) {
   return r.json()
 }
 
-export default function ChatFab({
+export default function Chatbox({
   apiBase = import.meta.env.VITE_API_BASE || 'https://kaizen-pbi.onrender.com',
   webBase = 'https://kaizenapps.net/gpt',
   label = 'Asistente',
@@ -106,15 +106,12 @@ export default function ChatFab({
     setOpen(next)
     setError('')
     if (!next) return
-
     try {
       const license = getLicense()
       if (!license) throw new Error('Falta la licencia')
-
       const prefix  = getSS('kaizen.prefix')
       const client  = getSS('kaizen.clientName')
       const report  = getSS('kaizen.reportCode')
-
       const info = await resolveThread(apiBase, license)
       const q = new URLSearchParams({
         thread: info.threadId || '',
@@ -127,8 +124,8 @@ export default function ChatFab({
         mobile: 'https://kaizenapps.net/mobile',
       })
       const base = webBase.replace(/\/+$/,'')
-      const url = /\.html?$/i.test(base) ? `${base}#${q.toString()}` : `${base}/#${q.toString()}`
-      setSrc(url)
+      const page = /\.html?$/i.test(base) ? '' : '/'
+      setSrc(`${base}${page}#${q.toString()}`)
     } catch (e) {
       setSrc('')
       setError(e?.message || String(e))
