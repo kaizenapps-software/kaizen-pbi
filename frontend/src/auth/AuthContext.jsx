@@ -41,10 +41,19 @@ export function AuthProvider({ children }) {
   };
 
   const logout = async () => {
-    await fetch(apiUrl("/auth/logout"), { method: "POST", credentials: "include" });
-    setUser(null);
-    navigate("/login", { replace: true });
-  };
+  await fetch(apiUrl("/auth/logout"), { method: "POST", credentials: "include" });
+  try {
+    sessionStorage.removeItem("kaizen.license");
+    sessionStorage.removeItem("kaizen.prefix");
+    sessionStorage.removeItem("kaizen.clientName");
+    sessionStorage.removeItem("kaizen.reportCode");
+    sessionStorage.removeItem("kz-auth");
+    localStorage.removeItem("kz-auth");
+  } catch {}
+  setUser(null);
+  navigate("/login", { replace: true });
+};
+
 
   const value = useMemo(() => ({ user, isAuth: !!user, login, logout, hydrated }), [user, hydrated]);
   return <AuthCtx.Provider value={value}>{children}</AuthCtx.Provider>;

@@ -78,11 +78,26 @@ export default function LoginPage() {
       if (r.ok) {
         const j = await r.json().catch(() => null);
         const client = j?.prefix || (code.match(/^[A-Z]{2,6}(?=-)/) || [null])[0];
+
+        try {
+          sessionStorage.setItem("kaizen.license", code);
+          sessionStorage.setItem("kaizen.prefix", client || "");
+          const r2 = await fetch(apiUrl(`/reports/client-info?prefix=${client}`), { credentials: "include" });
+          const info = await r2.json().catch(() => null);
+          if (r2.ok && info?.client) {
+        sessionStorage.setItem("kaizen.clientName", info.client.name || client || "");
+        if (info.defaultReportCode) sessionStorage.setItem("kaizen.reportCode", info.defaultReportCode);
+          } else {
+        sessionStorage.setItem("kaizen.clientName", client || "");
+          }
+        } catch {}
+
         const exp = Date.now() + DEFAULT_TTL_MS;
         try {
           sessionStorage.setItem("kz-auth", JSON.stringify({ license: code, client, exp }));
           localStorage.removeItem("kz-auth");
         } catch {}
+
         setSuccess(true);
         navigate("/dashboard", { replace: true });
         return;
