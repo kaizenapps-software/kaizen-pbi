@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { apiFetchClientInfo } from "../lib/api";
 import { useAutoAnimate } from "@formkit/auto-animate/react";
-import AOS from "aos";
-import "aos/dist/aos.css";
+import { motion } from "framer-motion";
 
 const KEY = "kz-auth";
 
@@ -56,10 +55,6 @@ export default function ProfilePage() {
   const [chipsParent] = useAutoAnimate({ duration: 180 });
 
   useEffect(() => {
-    AOS.init({ duration: 320, once: true });
-  }, []);
-
-  useEffect(() => {
     let alive = true;
     if (!prefix) { setSt("no_prefix"); return; }
     apiFetchClientInfo(prefix)
@@ -70,14 +65,19 @@ export default function ProfilePage() {
 
   if (status !== "ok") {
     return (
-      <div className="max-w-3xl mx-auto p-6 anim-page" data-aos="fade-up">
+      <motion.div
+        className="max-w-3xl mx-auto p-6"
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.28 }}
+      >
         <h1 className="text-2xl font-semibold mb-4">Mi perfil</h1>
         <div className="p-4 rounded-xl border border-border bg-[var(--color-panel)] text-sm">
           {status === "loading" && "Cargando…"}
           {status === "no_prefix" && "No hay licencia activa."}
           {status === "error" && `No se pudo cargar el perfil: ${error}`}
         </div>
-      </div>
+      </motion.div>
     );
   }
 
@@ -86,11 +86,21 @@ export default function ProfilePage() {
   const defCode = data?.defaultReportCode || null;
 
   return (
-    <div className="max-w-5xl mx-auto p-6 anim-page" data-aos="fade-up">
+    <motion.div
+      className="max-w-5xl mx-auto p-6"
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.28 }}
+    >
       <h1 className="text-2xl font-semibold mb-5">Mi perfil</h1>
 
       <div className="grid md:grid-cols-2 gap-4">
-        <section className="rounded-2xl border border-border bg-[var(--color-panel)] p-5" data-aos="fade-right">
+        <motion.section
+          className="rounded-2xl border border-border bg-[var(--color-panel)] p-5"
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.28 }}
+        >
           <h2 className="text-sm text-muted mb-1">Cliente</h2>
           <div className="text-lg font-semibold">{clientName}</div>
           <div className="text-sm text-muted mt-1">Código: <span className="font-medium">{prefix}</span></div>
@@ -105,8 +115,7 @@ export default function ProfilePage() {
                 return (
                   <span
                     key={r.code}
-                    className="inline-flex items-center gap-2 rounded-full border border-border px-3 py-1 text-sm"
-                    data-aos="zoom-in"
+                    className="inline-flex items-center gap-2 rounded-full border border-border px-3 py-1 text-sm animate-fade"
                   >
                     <span className="opacity-80">{label}</span>
                     <span className="opacity-80">({label})</span>
@@ -116,9 +125,14 @@ export default function ProfilePage() {
               })}
             </div>
           </div>
-        </section>
+        </motion.section>
 
-        <section className="rounded-2xl border border-border bg-[var(--color-panel)] p-5" data-aos="fade-left">
+        <motion.section
+          className="rounded-2xl border border-border bg-[var(--color-panel)] p-5"
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.28, delay: 0.06 }}
+        >
           <h2 className="text-sm text-muted mb-1">Licencia</h2>
           <div className="text-lg font-semibold">{masked}</div>
 
@@ -127,8 +141,8 @@ export default function ProfilePage() {
             <span className="mx-2">·</span>
             Expira el: <span className="font-medium">{fmtDateES(data?.license?.expiryDate)}</span>
           </div>
-        </section>
+        </motion.section>
       </div>
-    </div>
+    </motion.div>
   );
 }

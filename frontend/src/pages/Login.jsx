@@ -5,8 +5,7 @@ import bgCrimson from "../assets/img/Kaizen Crimson 1.003000.png";
 import logoK from "../assets/img/Icon App.png";
 import Banner from "../components/Banner";
 import { apiUrl, jsonHeaders } from "../lib/api";
-import AOS from "aos";
-import "aos/dist/aos.css";
+import { motion } from "framer-motion";
 import { DotLottieReact } from "@lottiefiles/dotlottie-react";
 
 const ERRORS_ES = {
@@ -34,12 +33,8 @@ export default function LoginPage() {
 
   useEffect(() => {
     initTheme();
-    AOS.init({ duration: 320, once: true, easing: "ease-out" });
     inputRef.current?.focus();
-    try {
-      sessionStorage.removeItem(AUTH_KEY);
-      localStorage.removeItem(AUTH_KEY);
-    } catch {}
+    try { sessionStorage.removeItem(AUTH_KEY); localStorage.removeItem(AUTH_KEY); } catch {}
   }, []);
 
   const errorText = useMemo(() => {
@@ -56,8 +51,7 @@ export default function LoginPage() {
       if (re.test(raw) && raw.length - len >= 16) { prefix = raw.slice(0, len); break; }
     }
     const rest = (prefix ? raw.slice(prefix.length) : raw).slice(0, 16);
-    const g = [rest.slice(0,4), rest.slice(4,8), rest.slice(8,12), rest.slice(12,16)]
-      .filter(Boolean).join("-");
+    const g = [rest.slice(0,4), rest.slice(4,8), rest.slice(8,12), rest.slice(12,16)].filter(Boolean).join("-");
     e.preventDefault();
     setLicense(prefix ? `${prefix}-${g}` : g);
   };
@@ -66,10 +60,8 @@ export default function LoginPage() {
     e.preventDefault();
     setBanner("");
     setErrorKey("");
-
     const code = (license || "").trim().toUpperCase();
     if (!code) { setErrorKey("missing-license"); return; }
-
     setLoading(true);
     try {
       const r = await fetch(apiUrl("/auth/login"), {
@@ -78,11 +70,9 @@ export default function LoginPage() {
         credentials: "include",
         body: JSON.stringify({ license: code }),
       });
-
       if (r.ok) {
         const j = await r.json().catch(() => null);
         const client = j?.prefix || (code.match(/^[A-Z]{2,6}(?=-)/) || [null])[0];
-
         try {
           sessionStorage.setItem("kaizen.license", code);
           sessionStorage.setItem("kaizen.prefix", client || "");
@@ -95,18 +85,12 @@ export default function LoginPage() {
             sessionStorage.setItem("kaizen.clientName", client || "");
           }
         } catch {}
-
         const exp = Date.now() + DEFAULT_TTL_MS;
-        try {
-          sessionStorage.setItem("kz-auth", JSON.stringify({ license: code, client, exp }));
-          localStorage.removeItem("kz-auth");
-        } catch {}
-
+        try { sessionStorage.setItem("kz-auth", JSON.stringify({ license: code, client, exp })); localStorage.removeItem("kz-auth"); } catch {}
         setSuccess(true);
         navigate("/dashboard", { replace: true });
         return;
       }
-
       let err = "server-error";
       try {
         const j = await r.json();
@@ -132,7 +116,12 @@ export default function LoginPage() {
       <div className="login-vignette" aria-hidden="true" />
 
       <section className="relative hidden lg:flex flex-col justify-center pl-14 py-10">
-        <div className="mb-6 flex items-center gap-3" data-aos="fade-right">
+        <motion.div
+          className="mb-6 flex items-center gap-3"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.28 }}
+        >
           <div className="k-mark">
             <img src={logoK} alt="Kaizen" className="h-11 w-11 object-contain" />
           </div>
@@ -140,21 +129,31 @@ export default function LoginPage() {
             <div className="text-xl font-semibold">Kaizen</div>
             <div className="text-sm text-muted">Resource Management</div>
           </div>
-        </div>
+        </motion.div>
 
-        <div className={`banner-frame ${success ? "fade-out" : ""}`} data-aos="fade-up">
+        <motion.div
+          className={`banner-frame ${success ? "fade-out" : ""}`}
+          initial={{ opacity: 0, y: 14 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.34 }}
+        >
           <Banner />
-        </div>
+        </motion.div>
       </section>
 
       <section className="flex items-center justify-center px-6">
-        <div className="auth-card anim-page w-full max-w-md" data-aos="zoom-in">
+        <motion.div
+          className="auth-card w-full max-w-md animate-fade"
+          initial={{ opacity: 0, scale: 0.98 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.28 }}
+        >
           <header className="mb-6">
             <h2 className="text-xl font-semibold text-foreground">Iniciar sesión</h2>
             <p className="mt-1 text-sm text-muted">Introduce tu licencia Kaizen</p>
           </header>
 
-          {banner && <div className="notice notice-ok mb-4" data-aos="fade-in">{banner}</div>}
+          {banner && <div className="notice notice-ok mb-4 animate-fade">{banner}</div>}
 
           <form onSubmit={handleSubmit} className="space-y-5" noValidate>
             <div className="form-field">
@@ -193,7 +192,7 @@ export default function LoginPage() {
           <footer className="mt-6 text-xs opacity-70">
             Al iniciar sesión aceptas los <a href="#" className="text-foreground" style={{ color: "#ef4444" }}>términos y condiciones</a>.
           </footer>
-        </div>
+        </motion.div>
       </section>
 
       {success && (
