@@ -27,5 +27,8 @@
     "tailwindcss": "^3.4.10",
     "tailwindcss-animated": "^1.0.1",
     "vite": "^5.4.10"
+  },
+  "optionalDependencies": {
+    "@rollup/rollup-linux-x64-gnu": "*"
   }
 }
