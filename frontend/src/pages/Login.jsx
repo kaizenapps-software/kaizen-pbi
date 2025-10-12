@@ -5,6 +5,9 @@ import bgCrimson from "../assets/img/Kaizen Crimson 1.003000.png";
 import logoK from "../assets/img/Icon App.png";
 import Banner from "../components/Banner";
 import { apiUrl, jsonHeaders } from "../lib/api";
+import AOS from "aos";
+import "aos/dist/aos.css";
+import { DotLottieReact } from "@lottiefiles/dotlottie-react";
 
 const ERRORS_ES = {
   "invalid-license": "Licencia inválida.",
@@ -31,6 +34,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     initTheme();
+    AOS.init({ duration: 320, once: true, easing: "ease-out" });
     inputRef.current?.focus();
     try {
       sessionStorage.removeItem(AUTH_KEY);
@@ -85,10 +89,10 @@ export default function LoginPage() {
           const r2 = await fetch(apiUrl(`/reports/client-info?prefix=${client}`), { credentials: "include" });
           const info = await r2.json().catch(() => null);
           if (r2.ok && info?.client) {
-        sessionStorage.setItem("kaizen.clientName", info.client.name || client || "");
-        if (info.defaultReportCode) sessionStorage.setItem("kaizen.reportCode", info.defaultReportCode);
+            sessionStorage.setItem("kaizen.clientName", info.client.name || client || "");
+            if (info.defaultReportCode) sessionStorage.setItem("kaizen.reportCode", info.defaultReportCode);
           } else {
-        sessionStorage.setItem("kaizen.clientName", client || "");
+            sessionStorage.setItem("kaizen.clientName", client || "");
           }
         } catch {}
 
@@ -128,7 +132,7 @@ export default function LoginPage() {
       <div className="login-vignette" aria-hidden="true" />
 
       <section className="relative hidden lg:flex flex-col justify-center pl-14 py-10">
-        <div className="mb-6 flex items-center gap-3">
+        <div className="mb-6 flex items-center gap-3" data-aos="fade-right">
           <div className="k-mark">
             <img src={logoK} alt="Kaizen" className="h-11 w-11 object-contain" />
           </div>
@@ -138,19 +142,19 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <div className={`banner-frame ${success ? "fade-out" : ""}`}>
+        <div className={`banner-frame ${success ? "fade-out" : ""}`} data-aos="fade-up">
           <Banner />
         </div>
       </section>
 
       <section className="flex items-center justify-center px-6">
-        <div className="auth-card anim-page w-full max-w-md">
+        <div className="auth-card anim-page w-full max-w-md" data-aos="zoom-in">
           <header className="mb-6">
             <h2 className="text-xl font-semibold text-foreground">Iniciar sesión</h2>
             <p className="mt-1 text-sm text-muted">Introduce tu licencia Kaizen</p>
           </header>
 
-          {banner && <div className="notice notice-ok mb-4">{banner}</div>}
+          {banner && <div className="notice notice-ok mb-4" data-aos="fade-in">{banner}</div>}
 
           <form onSubmit={handleSubmit} className="space-y-5" noValidate>
             <div className="form-field">
@@ -169,7 +173,7 @@ export default function LoginPage() {
                   autoComplete="off"
                   placeholder="AAA-BBBB-CCCC-DDDD"
                   value={license}
-                  onChange={(e) => setLicense(e.target.value.toUpperCase())}
+                  onChange={(e) => e.target.value && setLicense(e.target.value.toUpperCase())}
                   onPaste={handlePaste}
                   className="input"
                   aria-invalid={!!errorText}
@@ -193,8 +197,8 @@ export default function LoginPage() {
       </section>
 
       {success && (
-        <div className="success-overlay" aria-hidden="true">
-          <div className="kz-curtain-shape" />
+        <div className="success-overlay grid place-items-center" aria-hidden="true">
+          <DotLottieReact src="/anim/success.lottie" loop={false} autoplay className="w-24 h-24" />
         </div>
       )}
     </div>

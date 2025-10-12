@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import BiDashboardEmbed from "../bi/BiDashboardEmbed.jsx";
 import { initTheme } from "../lib/theme";
+import AOS from "aos";
+import "aos/dist/aos.css";
 
 export default function BiDashboardPage() {
   const wrapRef = useRef(null);
   const [frameH, setFrameH] = useState(640);
 
-  useEffect(() => { initTheme(); }, []);
+  useEffect(() => { initTheme(); AOS.init({ duration: 320, once: true }); }, []);
 
   useEffect(() => {
     const recalc = () => {
@@ -25,7 +27,11 @@ export default function BiDashboardPage() {
   const isDesktop = typeof window !== "undefined" && window.matchMedia("(min-width:1024px)").matches;
 
   return (
-    <div ref={wrapRef} className="px-3 md:px-4 pb-6 anim-page rounded-2xl border border-border overflow-hidden shadow-soft anim-fade-up">
+    <div
+      ref={wrapRef}
+      className="px-3 md:px-4 pb-6 anim-page rounded-2xl border border-border overflow-hidden shadow-soft"
+      data-aos="fade-up"
+    >
       <BiDashboardEmbed style={isDesktop ? { height: `${frameH}px` } : undefined} />
       {!isDesktop && <div className="bi-frame hidden" />}
     </div>

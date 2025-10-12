@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { apiFetchClientInfo } from "../lib/api";
+import { useAutoAnimate } from "@formkit/auto-animate/react";
+import AOS from "aos";
+import "aos/dist/aos.css";
 
 const KEY = "kz-auth";
 
@@ -50,6 +53,11 @@ export default function ProfilePage() {
   const [data, setData]   = useState(null);
   const [status, setSt]   = useState("loading");
   const [error, setError] = useState("");
+  const [chipsParent] = useAutoAnimate({ duration: 180 });
+
+  useEffect(() => {
+    AOS.init({ duration: 320, once: true });
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -62,7 +70,7 @@ export default function ProfilePage() {
 
   if (status !== "ok") {
     return (
-      <div className="max-w-3xl mx-auto p-6 anim-page">
+      <div className="max-w-3xl mx-auto p-6 anim-page" data-aos="fade-up">
         <h1 className="text-2xl font-semibold mb-4">Mi perfil</h1>
         <div className="p-4 rounded-xl border border-border bg-[var(--color-panel)] text-sm">
           {status === "loading" && "Cargando…"}
@@ -78,26 +86,28 @@ export default function ProfilePage() {
   const defCode = data?.defaultReportCode || null;
 
   return (
-    <div className="max-w-5xl mx-auto p-6 anim-page">
+    <div className="max-w-5xl mx-auto p-6 anim-page" data-aos="fade-up">
       <h1 className="text-2xl font-semibold mb-5">Mi perfil</h1>
 
       <div className="grid md:grid-cols-2 gap-4">
-        {/* Cliente */}
-        <section className="rounded-2xl border border-border bg-[var(--color-panel)] p-5">
+        <section className="rounded-2xl border border-border bg-[var(--color-panel)] p-5" data-aos="fade-right">
           <h2 className="text-sm text-muted mb-1">Cliente</h2>
           <div className="text-lg font-semibold">{clientName}</div>
           <div className="text-sm text-muted mt-1">Código: <span className="font-medium">{prefix}</span></div>
 
           <div className="mt-5">
             <h3 className="text-sm text-muted mb-2">Reportes disponibles</h3>
-            <div className="flex flex-wrap gap-2">
+            <div ref={chipsParent} className="flex flex-wrap gap-2">
               {reports.length === 0 && <span className="text-sm text-muted">—</span>}
               {reports.map(r => {
                 const label = r.name || r.code;
                 const isDef = r.code === defCode || r.isDefault;
                 return (
-                  <span key={r.code}
-                        className="inline-flex items-center gap-2 rounded-full border border-border px-3 py-1 text-sm">
+                  <span
+                    key={r.code}
+                    className="inline-flex items-center gap-2 rounded-full border border-border px-3 py-1 text-sm"
+                    data-aos="zoom-in"
+                  >
                     <span className="opacity-80">{label}</span>
                     <span className="opacity-80">({label})</span>
                     {isDef && <span className="ml-1 text-amber-400 text-[11px]">★ Predeterminado</span>}
@@ -108,8 +118,7 @@ export default function ProfilePage() {
           </div>
         </section>
 
-        {/* Licencia */}
-        <section className="rounded-2xl border border-border bg-[var(--color-panel)] p-5">
+        <section className="rounded-2xl border border-border bg-[var(--color-panel)] p-5" data-aos="fade-left">
           <h2 className="text-sm text-muted mb-1">Licencia</h2>
           <div className="text-lg font-semibold">{masked}</div>
 
