@@ -129,19 +129,29 @@ export default function ProfilePage() {
   const clientName = data?.client?.name || prefix;
   const reports = Array.isArray(data?.reports) ? data.reports : [];
   const defCode = data?.defaultReportCode || null;
-  const expiryRaw = data?.license?.expiryDate || null;
+  const expiryRaw = data?.license?.expiryAt || data?.license?.expiryDate || null;
   const expiryTs = expiryRaw ? new Date(expiryRaw).getTime() : null;
   const remainingMs = (expiryTs != null) ? (expiryTs - nowMs) : null;
   const isExpired = (expiryTs != null) && remainingMs <= 0;
 
   useEffect(() => {
-    if (isExpired) {
-      const t = setTimeout(() => {
-        window.location.reload();
-      }, 800);
-      return () => clearTimeout(t);
-    }
-  }, [isExpired]);
+  if (!isExpired) return;
+  if (sessionStorage.getItem('kz-expire-redirect') === '1') return;
+  sessionStorage.setItem('kz-expire-redirect', '1');
+
+  const t = setTimeout(() => {
+    try {
+      sessionStorage.removeItem("kz-auth");
+      localStorage.removeItem("kz-auth");
+      sessionStorage.removeItem("kaizen.license");
+      sessionStorage.removeItem("kaizen.prefix");
+      sessionStorage.removeItem("kaizen.clientName");
+      sessionStorage.removeItem("kaizen.reportCode");
+    } catch {}
+    window.location.href = "/login";
+  }, 500);
+  return () => clearTimeout(t);
+}, [isExpired]);
 
   return (
     <motion.div

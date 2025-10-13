@@ -228,7 +228,10 @@ app.get('/reports/client-info', async (req, res) => {
     const conn = await pool.getConnection()
     try {
       const [licRows] = await conn.query(
-        `SELECT daClientName AS name, daStatus AS status, daExpiryDate AS expiryDate
+        `SELECT daClientName AS name,
+                daStatus      AS status,
+                COALESCE(daExpiryAt, daExpiryDate) AS expiryAt,
+                (COALESCE(daExpiryAt, daExpiryDate) <= UTC_TIMESTAMP()) AS isExpired
            FROM daDashboard
           WHERE daClientPrefix = ?
           ORDER BY LicenseID DESC
@@ -264,7 +267,7 @@ app.get('/reports/client-info', async (req, res) => {
       return res.json({
         status: 'ok',
         client: { prefix, name: lic.name || prefix },
-        license: { status: lic.status, expiryDate: lic.expiryDate },
+        license: { status: lic.status, expiryAt: lic.expiryAt, isExpired: !!lic.isExpired, expiryDate: lic.expiryAt },
         defaultReportCode,
         reports
       })
@@ -275,6 +278,7 @@ app.get('/reports/client-info', async (req, res) => {
     return res.status(500).json({ status: 'server-error', error: 'server-error' })
   }
 })
+
 
 app.get('/reports/home', async (req, res) => {
   try {
