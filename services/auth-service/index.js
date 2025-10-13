@@ -73,7 +73,7 @@ async function loginHandler(req, res) {
     try {
       const [rows] = await conn.query(
         `SELECT LicenseID, daClientPrefix, daStatus, daExpiryDate,
-                (daExpiryDate < CURDATE()) AS isExpired
+                (daExpiryDate < UTC_TIMESTAMP()) AS isExpired
            FROM daDashboard
           WHERE daLicenseHash = ?
           ORDER BY LicenseID DESC
@@ -115,7 +115,7 @@ async function loginHandler(req, res) {
 async function resolveLicense(conn, canonHashLower) {
   const [rows] = await conn.query(
     `SELECT LicenseID, daClientPrefix AS prefix, daStatus, daExpiryDate,
-            (daExpiryDate < CURDATE()) AS isExpired
+            (daExpiryDate < UTC_TIMESTAMP()) AS isExpired
        FROM daDashboard
       WHERE daLicenseHash = ?
       ORDER BY LicenseID DESC
@@ -138,7 +138,7 @@ app.post('/reports/options', async (req, res) => {
     try {
       const [rows] = await conn.query(
         `SELECT LicenseID, daClientPrefix AS prefix, daStatus, daExpiryDate,
-                daAllowAll, (daExpiryDate < CURDATE()) AS isExpired
+                daAllowAll, (daExpiryDate < UTC_TIMESTAMP()) AS isExpired
            FROM daDashboard
           WHERE daLicenseHash = ?
           ORDER BY LicenseID DESC
@@ -342,7 +342,7 @@ app.post('/assist/thread', async (req, res) => {
     try {
       const [rows] = await conn.query(
         `SELECT LicenseID, daClientPrefix AS prefix, daClientName AS clientName,
-                daStatus, (daExpiryDate < CURDATE()) AS isExpired
+                daStatus, (daExpiryDate < UTC_TIMESTAMP()) AS isExpired
            FROM daDashboard
           WHERE daLicenseHash = ?
           ORDER BY LicenseID DESC

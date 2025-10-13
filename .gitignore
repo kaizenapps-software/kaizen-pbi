@@ -30,3 +30,7 @@ Thumbs.db
 # --- Certificados (no subir privados)
 services/auth-service/certs/*
 !services/auth-service/certs/README.md
+
+**/db
+**/db/*
+db/docs/*
