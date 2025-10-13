@@ -81,8 +81,8 @@ export default function ProfilePage() {
   const prefix = auth?.client || "";
   const masked = maskLicense(auth?.license);
 
-  const [data, setData]   = useState(null);
-  const [status, setSt]   = useState("loading");
+  const [data, setData] = useState(null);
+  const [status, setSt] = useState("loading");
   const [error, setError] = useState("");
   const [chipsParent] = useAutoAnimate({ duration: 180 });
   const [nowMs, setNowMs] = useState(() => Date.now());
@@ -102,6 +102,25 @@ export default function ProfilePage() {
       .catch((e) => { if (!alive) return; setError(e?.message || "error"); setSt("error"); });
     return () => { alive = false; };
   }, [prefix]);
+
+  const serverStatus = (data?.license?.status || "").toLowerCase();
+  useEffect(() => {
+    if (serverStatus !== "expired") return;
+    if (sessionStorage.getItem("kz-expire-redirect") === "1") return;
+    sessionStorage.setItem("kz-expire-redirect", "1");
+    const t = setTimeout(() => {
+      try {
+        sessionStorage.removeItem("kz-auth");
+        localStorage.removeItem("kz-auth");
+        sessionStorage.removeItem("kaizen.license");
+        sessionStorage.removeItem("kaizen.prefix");
+        sessionStorage.removeItem("kaizen.clientName");
+        sessionStorage.removeItem("kaizen.reportCode");
+      } catch {}
+      window.location.href = "/login";
+    }, 500);
+    return () => clearTimeout(t);
+  }, [serverStatus]);
 
   if (status !== "ok") {
     return (
@@ -125,7 +144,6 @@ export default function ProfilePage() {
   const reports = Array.isArray(data?.reports) ? data.reports : [];
   const defCode = data?.defaultReportCode || null;
 
-  const serverStatus = (data?.license?.status || "").toLowerCase();
   const expiryRaw = data?.license?.expiryAt ?? data?.license?.expiryDate ?? null;
   const expiryTs = typeof expiryRaw === "string"
     ? Date.parse(expiryRaw)
@@ -133,24 +151,6 @@ export default function ProfilePage() {
   const remainingMs = Number.isFinite(expiryTs) ? (expiryTs - nowMs) : null;
   const isExpiredComputed = Number.isFinite(expiryTs) && remainingMs <= 0;
   const isExpired = isExpiredComputed || serverStatus === "expired";
-
-  useEffect(() => {
-    if (serverStatus !== "expired") return;
-    if (sessionStorage.getItem("kz-expire-redirect") === "1") return;
-    sessionStorage.setItem("kz-expire-redirect", "1");
-    const t = setTimeout(() => {
-      try {
-        sessionStorage.removeItem("kz-auth");
-        localStorage.removeItem("kz-auth");
-        sessionStorage.removeItem("kaizen.license");
-        sessionStorage.removeItem("kaizen.prefix");
-        sessionStorage.removeItem("kaizen.clientName");
-        sessionStorage.removeItem("kaizen.reportCode");
-      } catch {}
-      window.location.href = "/login";
-    }, 500);
-    return () => clearTimeout(t);
-  }, [serverStatus]);
 
   return (
     <motion.div
