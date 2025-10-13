@@ -34,16 +34,13 @@ function fmtExpiryES(d) {
   if (!d) return "";
   const dt = new Date(d);
   if (isNaN(+dt)) return String(d);
-
   const dateStr = new Intl.DateTimeFormat("es-CR", {
     year: "numeric", month: "long", day: "2-digit",
     timeZone: TZ,
   }).format(dt);
-
   const hm = new Intl.DateTimeFormat("en-US", {
     hour: "numeric", minute: "2-digit", hour12: true, timeZone: TZ,
-  }).format(dt); 
-
+  }).format(dt);
   const article = hm.startsWith("1:") ? "a la" : "a las";
   return `${dateStr} ${article} ${hm}`;
 }
@@ -51,18 +48,14 @@ function fmtExpiryES(d) {
 function fmtRemaining(ms) {
   if (ms == null) return "";
   if (ms <= 0) return "expirada";
-
   const totalSec = Math.floor(ms / 1000);
   const days = Math.floor(totalSec / 86400);
   const hours = Math.floor((totalSec % 86400) / 3600);
   const minutes = Math.floor((totalSec % 3600) / 60);
-
   const parts = [];
   if (days > 0) parts.push(`${days} día${days !== 1 ? "s" : ""}`);
   if (hours > 0) parts.push(`${hours} hora${hours !== 1 ? "s" : ""}`);
-
   parts.push(`${minutes} minuto${minutes !== 1 ? "s" : ""}`);
-
   return parts.length > 1
     ? parts.slice(0, -1).join(", ") + " y " + parts.slice(-1)
     : parts[0];
@@ -93,6 +86,8 @@ export default function ProfilePage() {
   const [error, setError] = useState("");
   const [chipsParent] = useAutoAnimate({ duration: 180 });
   const [nowMs, setNowMs] = useState(() => Date.now());
+
+  useEffect(() => { try { sessionStorage.removeItem("kz-expire-redirect"); } catch {} }, []);
 
   useEffect(() => {
     const id = setInterval(() => setNowMs(Date.now()), 1000);
@@ -129,29 +124,33 @@ export default function ProfilePage() {
   const clientName = data?.client?.name || prefix;
   const reports = Array.isArray(data?.reports) ? data.reports : [];
   const defCode = data?.defaultReportCode || null;
-  const expiryRaw = data?.license?.expiryAt || data?.license?.expiryDate || null;
-  const expiryTs = expiryRaw ? new Date(expiryRaw).getTime() : null;
-  const remainingMs = (expiryTs != null) ? (expiryTs - nowMs) : null;
-  const isExpired = (expiryTs != null) && remainingMs <= 0;
+
+  const serverStatus = (data?.license?.status || "").toLowerCase();
+  const expiryRaw = data?.license?.expiryAt ?? data?.license?.expiryDate ?? null;
+  const expiryTs = typeof expiryRaw === "string"
+    ? Date.parse(expiryRaw)
+    : (expiryRaw ? new Date(expiryRaw).getTime() : NaN);
+  const remainingMs = Number.isFinite(expiryTs) ? (expiryTs - nowMs) : null;
+  const isExpiredComputed = Number.isFinite(expiryTs) && remainingMs <= 0;
+  const isExpired = isExpiredComputed || serverStatus === "expired";
 
   useEffect(() => {
-  if (!isExpired) return;
-  if (sessionStorage.getItem('kz-expire-redirect') === '1') return;
-  sessionStorage.setItem('kz-expire-redirect', '1');
-
-  const t = setTimeout(() => {
-    try {
-      sessionStorage.removeItem("kz-auth");
-      localStorage.removeItem("kz-auth");
-      sessionStorage.removeItem("kaizen.license");
-      sessionStorage.removeItem("kaizen.prefix");
-      sessionStorage.removeItem("kaizen.clientName");
-      sessionStorage.removeItem("kaizen.reportCode");
-    } catch {}
-    window.location.href = "/login";
-  }, 500);
-  return () => clearTimeout(t);
-}, [isExpired]);
+    if (serverStatus !== "expired") return;
+    if (sessionStorage.getItem("kz-expire-redirect") === "1") return;
+    sessionStorage.setItem("kz-expire-redirect", "1");
+    const t = setTimeout(() => {
+      try {
+        sessionStorage.removeItem("kz-auth");
+        localStorage.removeItem("kz-auth");
+        sessionStorage.removeItem("kaizen.license");
+        sessionStorage.removeItem("kaizen.prefix");
+        sessionStorage.removeItem("kaizen.clientName");
+        sessionStorage.removeItem("kaizen.reportCode");
+      } catch {}
+      window.location.href = "/login";
+    }, 500);
+    return () => clearTimeout(t);
+  }, [serverStatus]);
 
   return (
     <motion.div
@@ -207,10 +206,7 @@ export default function ProfilePage() {
           <div className="text-sm text-muted mt-2">
             Estado: {statusBadge(isExpired ? "expired" : data?.license?.status)}
             <span className="mx-2">·</span>
-            Expira el:{" "}
-            <span className="font-medium">
-              {expiryRaw ? fmtExpiryES(expiryRaw) : "—"}
-            </span>
+            Expira el: <span className="font-medium">{expiryRaw ? fmtExpiryES(expiryRaw) : "—"}</span>
             {expiryRaw && (
               <span className={`ml-2 italic ${isExpired ? "text-red-500" : "text-muted"}`}>
                 ({fmtRemaining(remainingMs)})
