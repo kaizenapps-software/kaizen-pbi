@@ -428,7 +428,43 @@ app.post('/assist/thread/save', async (req, res) => {
   }
 })
 
-/*app.get('/me', (_req, res) => res.json({ ok: true }))*/
+app.post('/licensing/issue', async (req, res) => {
+  try {
+    const op = 'ISSUE';
+    const prefix     = String(req.body?.prefix || '').trim().toUpperCase();
+    const clientName = String(req.body?.clientName || '').trim();
+    const expiryAt   = String(req.body?.expiryAt || '').trim(); 
+    const pipe       = String(req.body?.pipe || '').trim();    
+    const allow      = String(req.body?.allow || '*').trim();
+
+    if (!prefix || !clientName || !expiryAt || !pipe) {
+      return res.status(400).json({ status: 'bad-request' });
+    }
+
+    const conn = await pool.getConnection();
+    try {
+      await conn.query('SET @st := NULL, @lic := NULL, @id := NULL');
+      await conn.query(
+        'CALL spLicensingAdmin(?,?,?,?,?,?,?,?,?, @st,@lic,@id)',
+        [op, prefix, clientName, expiryAt, pipe, allow, null, null, null]
+      );
+      const [rows] = await conn.query('SELECT @st AS st, @lic AS license, @id AS id');
+      const out = rows?.[0] || {};
+      const st  = String(out.st || '').toLowerCase();
+
+      if (st && st !== 'ok') {
+        return res.status(400).json({ status: st, license: out.license || null, id: out.id || null });
+      }
+      return res.json({ status: 'ok', license: out.license || null, id: out.id || null });
+    } finally {
+      conn.release();
+    }
+  } catch (e) {
+    return res.status(500).json({ status: 'server-error' });
+  }
+});
+
+
 app.post('/logout', (_req, res) => res.status(204).end())
 
 const port = process.env.PORT ? Number(process.env.PORT) : 4001
