@@ -68,12 +68,13 @@ async function loginHandler(req, res) {
     const canon = String(license).trim().toUpperCase()
     const licenseHash = sha256HexPeppered(canon).toLowerCase()
     if (DEBUG_AUTH === '1') console.log('[auth] /auth/login canon=', canon, 'hash=', licenseHash)
-    
+
     const conn = await pool.getConnection()
     try {
-        const xff = (req.headers['x-forwarded-for'] || '').toString();
-        const ip  = (xff.split(',')[0] || req.socket?.remoteAddress || req.ip || '').toString().slice(0, 45);
-        const ua  = (req.headers['user-agent'] || '').toString().slice(0, 255);
+      const xff = (req.headers['x-forwarded-for'] || '').toString()
+      const ip  = (xff.split(',')[0] || req.socket?.remoteAddress || req.ip || '').toString().slice(0, 45)
+      const ua  = (req.headers['user-agent'] || '').toString().slice(0, 255)
+
       const [rows] = await conn.query(
         `SELECT LicenseID, daClientPrefix, daStatus, daExpiryDate,
                 (daExpiryDate < UTC_TIMESTAMP()) AS isExpired
@@ -103,25 +104,18 @@ async function loginHandler(req, res) {
         await spLoginAuditLock(conn, { prefix, licenseId: licId, ok: 1, reason: 'ok', ip, ua })
         return res.json({ status: 'ok', prefix })
       } else {
-        const audit = await spLoginAuditLock(conn, { prefix, licenseId: licId, ok: 1, reason: 'ok', ip, ua })
+        const audit = await spLoginAuditLock(conn, { prefix, licenseId: licId, ok: 0, reason: status, ip, ua })
         if (audit.locked) return res.status(429).json({ status: 'rate-limited', error: 'rate-limited', until: audit.until })
         return res.status(401).json({ status, error: status })
       }
     } finally {
       conn.release()
     }
-  } catch {
+  } catch (e) {
+    console.error('[auth] /auth/login error:', e?.sqlMessage || e?.message || e)
     return res.status(500).json({ status: 'server-error', error: 'server-error' })
   }
 }
-
-  try {
-  await spLoginAuditLock(conn, { prefix, licenseId: licId, ok: 1, reason: 'ok', ip, ua })
-} catch (e) {
-  console.error('[auth] spLoginAuditLock error:', e?.sqlMessage || e?.message || e)
-  throw e
-}
-
 
 async function resolveLicense(conn, canonHashLower) {
   const [rows] = await conn.query(
@@ -147,6 +141,12 @@ app.post('/reports/options', async (req, res) => {
 
     const conn = await pool.getConnection()
     try {
+      const xff = (req.headers['x-forwarded-for'] || '').toString()
+      const ip  = (xff.split(',')[0] || req.socket?.remoteAddress || req.ip || '').toString().slice(0, 45)
+      const ua  = (req.headers['user-agent'] || '').toString().slice(0, 255)
+      const prefixFromLicense = extractPrefix(license)
+      const prefixForAudit = prefixFromLicense || 'UNK'
+
       const [rows] = await conn.query(
         `SELECT LicenseID, daClientPrefix AS prefix, daStatus, daExpiryDate,
                 daAllowAll, (daExpiryDate < UTC_TIMESTAMP()) AS isExpired
@@ -158,23 +158,23 @@ app.post('/reports/options', async (req, res) => {
       )
       const lic = rows?.[0]
       if (!lic) {
-        const audit = await spLoginAuditLock(conn, { prefix: null, licenseId: null, ok: 0, reason: 'mismatch_or_not_found', ip: req.ip, ua: req.get('user-agent') })
+        const audit = await spLoginAuditLock(conn, { prefix: prefixForAudit, licenseId: null, ok: 0, reason: 'mismatch_or_not_found', ip, ua })
         if (audit.locked) return res.status(429).json({ status: 'rate-limited', error: 'rate-limited', until: audit.until })
         return res.status(401).json({ status: 'mismatch_or_not_found', error: 'mismatch_or_not_found' })
       }
       if (lic.daStatus !== 'active') {
-        const audit = await spLoginAuditLock(conn, { prefix: lic.prefix, licenseId: lic.LicenseID, ok: 0, reason: lic.daStatus, ip: req.ip, ua: req.get('user-agent') })
+        const audit = await spLoginAuditLock(conn, { prefix: lic.prefix, licenseId: lic.LicenseID, ok: 0, reason: lic.daStatus, ip, ua })
         if (audit.locked) return res.status(429).json({ status: 'rate-limited', error: 'rate-limited', until: audit.until })
         return res.status(401).json({ status: lic.daStatus, error: lic.daStatus })
       }
       if (lic.isExpired) {
         await conn.query('UPDATE daDashboard SET daStatus="expired" WHERE LicenseID=?', [lic.LicenseID])
-        const audit = await spLoginAuditLock(conn, { prefix: lic.prefix, licenseId: lic.LicenseID, ok: 0, reason: 'expired', ip: req.ip, ua: req.get('user-agent') })
+        const audit = await spLoginAuditLock(conn, { prefix: lic.prefix, licenseId: lic.LicenseID, ok: 0, reason: 'expired', ip, ua })
         if (audit.locked) return res.status(429).json({ status: 'rate-limited', error: 'rate-limited', until: audit.until })
         return res.status(401).json({ status: 'expired', error: 'expired' })
       }
 
-      await spLoginAuditLock(conn, { prefix: lic.prefix, licenseId: lic.LicenseID, ok: 1, reason: 'ok', ip: req.ip, ua: req.get('user-agent') })
+      await spLoginAuditLock(conn, { prefix: lic.prefix, licenseId: lic.LicenseID, ok: 1, reason: 'ok', ip, ua })
 
       let repRows
       if (lic.daAllowAll) {
@@ -289,7 +289,6 @@ app.get('/reports/client-info', async (req, res) => {
     return res.status(500).json({ status: 'server-error', error: 'server-error' })
   }
 })
-
 
 app.get('/reports/home', async (req, res) => {
   try {
@@ -444,8 +443,8 @@ app.post('/licensing/issue', async (req, res) => {
     const op = 'ISSUE';
     const prefix     = String(req.body?.prefix || '').trim().toUpperCase();
     const clientName = String(req.body?.clientName || '').trim();
-    const expiryAt   = String(req.body?.expiryAt || '').trim(); 
-    const pipe       = String(req.body?.pipe || '').trim();    
+    const expiryAt   = String(req.body?.expiryAt || '').trim();
+    const pipe       = String(req.body?.pipe || '').trim();
     const allow      = String(req.body?.allow || '*').trim();
 
     if (!prefix || !clientName || !expiryAt || !pipe) {
@@ -474,7 +473,6 @@ app.post('/licensing/issue', async (req, res) => {
     return res.status(500).json({ status: 'server-error' });
   }
 });
-
 
 app.post('/logout', (_req, res) => res.status(204).end())
 
