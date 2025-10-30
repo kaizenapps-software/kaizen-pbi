@@ -68,9 +68,12 @@ async function loginHandler(req, res) {
     const canon = String(license).trim().toUpperCase()
     const licenseHash = sha256HexPeppered(canon).toLowerCase()
     if (DEBUG_AUTH === '1') console.log('[auth] /auth/login canon=', canon, 'hash=', licenseHash)
-
+    
     const conn = await pool.getConnection()
     try {
+        const xff = (req.headers['x-forwarded-for'] || '').toString();
+        const ip  = (xff.split(',')[0] || req.socket?.remoteAddress || req.ip || '').toString().slice(0, 45);
+        const ua  = (req.headers['user-agent'] || '').toString().slice(0, 255);
       const [rows] = await conn.query(
         `SELECT LicenseID, daClientPrefix, daStatus, daExpiryDate,
                 (daExpiryDate < UTC_TIMESTAMP()) AS isExpired
@@ -97,10 +100,10 @@ async function loginHandler(req, res) {
       }
 
       if (status === 'ok') {
-        await spLoginAuditLock(conn, { prefix, licenseId: licId, ok: 1, reason: 'ok', ip: req.ip, ua: req.get('user-agent') })
+        await spLoginAuditLock(conn, { prefix, licenseId: licId, ok: 1, reason: 'ok', ip, ua })
         return res.json({ status: 'ok', prefix })
       } else {
-        const audit = await spLoginAuditLock(conn, { prefix, licenseId: licId, ok: 0, reason: status, ip: req.ip, ua: req.get('user-agent') })
+        const audit = await spLoginAuditLock(conn, { prefix, licenseId: licId, ok: 1, reason: 'ok', ip, ua })
         if (audit.locked) return res.status(429).json({ status: 'rate-limited', error: 'rate-limited', until: audit.until })
         return res.status(401).json({ status, error: status })
       }
@@ -111,6 +114,14 @@ async function loginHandler(req, res) {
     return res.status(500).json({ status: 'server-error', error: 'server-error' })
   }
 }
+
+  try {
+  await spLoginAuditLock(conn, { prefix, licenseId: licId, ok: 1, reason: 'ok', ip, ua })
+} catch (e) {
+  console.error('[auth] spLoginAuditLock error:', e?.sqlMessage || e?.message || e)
+  throw e
+}
+
 
 async function resolveLicense(conn, canonHashLower) {
   const [rows] = await conn.query(
