@@ -124,14 +124,7 @@ app.get('/__diag/ping-options', async (_req, res) => {
   }
 });
 
-
-app.use((req, _res, next) => {
-  console.warn('[edge] no match ->', req.method, req.originalUrl);
-  next();
-});
-app.use((_req, res) => res.status(404).json({ error: 'not-found' }));
-
-// Health check endpoint
+// Health check endpoint (must be before 404 handler)
 app.get('/health', (req, res) => {
   res.status(200).json({
     status: 'healthy',
@@ -139,6 +132,12 @@ app.get('/health', (req, res) => {
     service: 'edge-api'
   });
 });
+
+app.use((req, _res, next) => {
+  console.warn('[edge] no match ->', req.method, req.originalUrl);
+  next();
+});
+app.use((_req, res) => res.status(404).json({ error: 'not-found' }));
 
 app.listen(Number(PORT), () => {
   console.log(`[edge] listening on :${PORT} -> auth: ${AUTH_SERVICE_URL}`);
