@@ -6,11 +6,6 @@ import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
 import { createProxyMiddleware } from 'http-proxy-middleware';
 import compression from 'compression';
-import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 const {
   PORT = '4002',
@@ -129,25 +124,6 @@ app.get('/__diag/ping-options', async (_req, res) => {
   }
 });
 
-
-
-// Serve static frontend files in production
-if (process.env.NODE_ENV === 'production') {
-  const frontendPath = path.join(__dirname, '../../frontend/dist');
-  app.use(express.static(frontendPath, {
-    maxAge: '1d',
-    etag: true,
-  }));
-
-  // SPA fallback - serve index.html for all non-API routes
-  app.get('*', (req, res, next) => {
-    // Skip API routes
-    if (req.path.startsWith('/auth') || req.path.startsWith('/reports') || req.path.startsWith('/health')) {
-      return next();
-    }
-    res.sendFile(path.join(frontendPath, 'index.html'));
-  });
-}
 
 app.use((req, _res, next) => {
   console.warn('[edge] no match ->', req.method, req.originalUrl);
