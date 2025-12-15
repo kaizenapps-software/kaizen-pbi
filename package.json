@@ -8,7 +8,8 @@
     "dev:auth": "npm --prefix services/auth-service run dev",
     "dev:edge": "npm --prefix services/edge-api run dev",
     "dev:web": "npm --prefix frontend run dev",
-    "build": "npm --prefix frontend install && npm --prefix frontend run build && npm --prefix services/edge-api install && npm --prefix services/auth-service install",
+    "install:all": "npm --prefix services/auth-service install && npm --prefix services/edge-api install && npm --prefix frontend install",
+    "build": "npm run install:all && npm --prefix frontend run build",
     "start": "NODE_ENV=production node services/edge-api/index.js",
     "bootstrap": "npm --prefix services/auth-service ci --no-audit --no-fund && npm --prefix services/edge-api ci --no-audit --no-fund && npm --prefix frontend ci --no-audit --no-fund"
   },
