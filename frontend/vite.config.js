@@ -3,11 +3,18 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
+  define: {
+    'import.meta.env.VITE_API_BASE': JSON.stringify(''),
+  },
   server: {
     port: 5173,
     proxy: {
       '/auth': {
-        target: 'http://localhost:3001', 
+        target: 'http://localhost:4002',
+        changeOrigin: true
+      },
+      '/reports': {
+        target: 'http://localhost:4002',
         changeOrigin: true
       }
     }

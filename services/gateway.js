@@ -8,13 +8,18 @@ import path from "path";
 import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
-const __dirname  = path.dirname(__filename);
+const __dirname = path.dirname(__filename);
 
-const PORT       = Number(process.env.PORT || 3000);
+const PORT = Number(process.env.PORT || 3000);
 
-const AUTH_PORT  = Number(process.env.AUTH_PORT || 4001);
-const FRONTEND   = (process.env.CORS_ORIGIN || "")
-                    .split(",").map(s => s.trim()).filter(Boolean);
+const AUTH_PORT = Number(process.env.AUTH_PORT || 4001);
+const FRONTEND = (process.env.CORS_ORIGIN || "")
+  .split(",").map(s => s.trim()).filter(Boolean);
+// Only allow localhost in development
+if (process.env.NODE_ENV !== 'production') {
+  if (!FRONTEND.includes("http://localhost:5173")) FRONTEND.push("http://localhost:5173");
+  if (!FRONTEND.includes("http://localhost:3000")) FRONTEND.push("http://localhost:3000");
+}
 
 const children = [];
 function spawnSvc(name, cmd, args, env = {}, cwd) {
@@ -51,7 +56,7 @@ app.use("/auth", createProxyMiddleware({
   target: `http://127.0.0.1:${AUTH_PORT}`,
   changeOrigin: false,
   xfwd: true,
-  pathRewrite: { "^/auth": "" },   
+  pathRewrite: { "^/auth": "" },
   logLevel: "warn"
 }));
 
@@ -69,8 +74,8 @@ const server = app.listen(PORT, () =>
 );
 
 function shutdown() {
-  try { server.close(); } catch {}
-  children.forEach(ch => { try { kill(ch.pid); } catch {} });
+  try { server.close(); } catch { }
+  children.forEach(ch => { try { kill(ch.pid); } catch { } });
   setTimeout(() => process.exit(0), 500);
 }
 process.on("SIGINT", shutdown);

@@ -5,6 +5,7 @@ import cors from 'cors';
 import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
 import { createProxyMiddleware } from 'http-proxy-middleware';
+import compression from 'compression';
 
 const {
   PORT = '4002',
@@ -14,12 +15,43 @@ const {
 
 const app = express();
 
+// Response compression (must be early in middleware chain)
+app.use(compression({
+  level: 6,           // Balance between speed and compression ratio
+  threshold: 1024,    // Only compress responses larger than 1KB
+  filter: (req, res) => {
+    if (req.headers['x-no-compression']) return false;
+    return compression.filter(req, res);
+  }
+}));
+
 app.disable('x-powered-by');
-app.set('trust proxy', ['loopback','linklocal','uniquelocal']);
-app.use(helmet({ contentSecurityPolicy: false }));
+app.set('trust proxy', ['loopback', 'linklocal', 'uniquelocal']);
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"], // unsafe-inline needed for Vite dev
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'", "https://app.powerbi.com"],
+      frameSrc: ["https://app.powerbi.com"],
+    },
+  },
+  hsts: {
+    maxAge: 31536000,
+    includeSubDomains: true,
+    preload: true,
+  },
+}));
 app.use(morgan('tiny'));
 
 const allowList = CORS_ORIGIN.split(',').map(s => s.trim()).filter(Boolean);
+// Only allow localhost in development
+if (process.env.NODE_ENV !== 'production') {
+  if (!allowList.includes('http://localhost:5173')) allowList.push('http://localhost:5173');
+  if (!allowList.includes('http://localhost:3000')) allowList.push('http://localhost:3000');
+}
 app.use(cors({
   origin(origin, cb) {
     if (!origin || allowList.includes(origin)) return cb(null, true);
@@ -31,6 +63,14 @@ app.use(cors({
 app.use('/auth', rateLimit({
   windowMs: 60_000,
   max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+}));
+
+// Rate limiting for reports endpoints
+app.use('/reports', rateLimit({
+  windowMs: 60_000,
+  max: 30, // More restrictive for data endpoints
   standardHeaders: true,
   legacyHeaders: false,
 }));
@@ -70,10 +110,10 @@ app.all(['/reports', '/reports/*'], (req, res, next) => {
 app.get('/__diag/ping-options', async (_req, res) => {
   try {
     const r = await fetch(`${AUTH_SERVICE_URL}/reports/options`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ license: 'TEST-0000-0000-0000' }),
-  });
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ license: 'TEST-0000-0000-0000' }),
+    });
     const text = await r.text().catch(() => '');
     res.status(200).type('text').send(`status=${r.status}\n${text}`);
   } catch (e) {
@@ -88,6 +128,15 @@ app.use((req, _res, next) => {
   next();
 });
 app.use((_req, res) => res.status(404).json({ error: 'not-found' }));
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    service: 'edge-api'
+  });
+});
 
 app.listen(Number(PORT), () => {
   console.log(`[edge] listening on :${PORT} -> auth: ${AUTH_SERVICE_URL}`);

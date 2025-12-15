@@ -40,7 +40,7 @@ export default function App() {
               <>
                 <AppShell />
                 <Chatbox
-                  apiBase={import.meta.env.VITE_API_BASE || "https://kaizen-pbi.onrender.com"}
+                  apiBase=""
                   webBase="https://kaizenapps.net/gpt"
                   label="Asistente"
                   theme="dark"

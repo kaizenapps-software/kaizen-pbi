@@ -53,15 +53,42 @@ async function spLoginAuditLock(conn, { prefix, licenseId, ok, reason, ip, ua })
   return { locked: Number(r.locked || 0), until: r.until || null }
 }
 
-app.get('/healthz', (_req, res) => res.status(200).json({ ok: true }))
+app.get('/healthz', async (_req, res) => {
+  try {
+    // Test database connectivity
+    await pool.query('SELECT 1 AS health');
+    res.status(200).json({
+      status: 'healthy',
+      timestamp: new Date().toISOString(),
+      database: 'connected'
+    });
+  } catch (e) {
+    res.status(503).json({
+      status: 'unhealthy',
+      timestamp: new Date().toISOString(),
+      database: 'disconnected',
+      error: e.message
+    });
+  }
+});
 
 app.post('/login', loginHandler)
 app.post('/license/login', loginHandler)
+
+app.get('/me', (req, res) => {
+  res.json({ ok: false });
+});
 
 async function loginHandler(req, res) {
   try {
     const { license } = req.body || {}
     if (!license) return res.status(400).json({ status: 'missing-license', error: 'missing-license' })
+
+    // Input validation: prevent DoS via extremely long inputs
+    if (typeof license !== 'string' || license.length > 100) {
+      return res.status(400).json({ status: 'invalid-license', error: 'invalid-license' })
+    }
+
     const prefix = extractPrefix(license)
     if (!prefix) return res.status(400).json({ status: 'invalid-license', error: 'invalid-license' })
 
@@ -72,8 +99,8 @@ async function loginHandler(req, res) {
     const conn = await pool.getConnection()
     try {
       const xff = (req.headers['x-forwarded-for'] || '').toString()
-      const ip  = (xff.split(',')[0] || req.socket?.remoteAddress || req.ip || '').toString().slice(0, 45)
-      const ua  = (req.headers['user-agent'] || '').toString().slice(0, 255)
+      const ip = (xff.split(',')[0] || req.socket?.remoteAddress || req.ip || '').toString().slice(0, 45)
+      const ua = (req.headers['user-agent'] || '').toString().slice(0, 255)
 
       const [rows] = await conn.query(
         `SELECT LicenseID, daClientPrefix, daStatus, daExpiryDate,
@@ -112,8 +139,16 @@ async function loginHandler(req, res) {
       conn.release()
     }
   } catch (e) {
-    console.error('[auth] /auth/login error:', e?.sqlMessage || e?.message || e)
-    return res.status(500).json({ status: 'server-error', error: 'server-error' })
+    // Log full error server-side for debugging with request context
+    const requestId = req.headers['x-request-id'] || 'unknown';
+    console.error('[auth] /auth/login error:', {
+      requestId,
+      error: e?.sqlMessage || e?.message || String(e),
+      license: license ? `${license.substring(0, 10)}...` : 'none', // Partial license for privacy
+      ip: (req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0]
+    });
+    // Return generic error to client to prevent information disclosure
+    return res.status(500).json({ status: 'server-error', error: 'An error occurred during login' })
   }
 }
 
@@ -142,8 +177,8 @@ app.post('/reports/options', async (req, res) => {
     const conn = await pool.getConnection()
     try {
       const xff = (req.headers['x-forwarded-for'] || '').toString()
-      const ip  = (xff.split(',')[0] || req.socket?.remoteAddress || req.ip || '').toString().slice(0, 45)
-      const ua  = (req.headers['user-agent'] || '').toString().slice(0, 255)
+      const ip = (xff.split(',')[0] || req.socket?.remoteAddress || req.ip || '').toString().slice(0, 45)
+      const ua = (req.headers['user-agent'] || '').toString().slice(0, 255)
       const prefixFromLicense = extractPrefix(license)
       const prefixForAudit = prefixFromLicense || 'UNK'
 
@@ -211,14 +246,14 @@ app.post('/reports/options', async (req, res) => {
       const reports = (repRows || []).map(r => ({
         code: r.code,
         name: r.name,
-        url:  r.url,
+        url: r.url,
         isDefault: !!r.isDefault
       }))
       const defaultReportCode = reports.find(r => r.isDefault)?.code || reports[0]?.code || null
 
       return res.json({
         status: 'ok',
-        client:  { prefix: lic.prefix },
+        client: { prefix: lic.prefix },
         license: { status: lic.daStatus, expiryDate: lic.daExpiryDate, allowAll: !!lic.daAllowAll },
         defaultReportCode,
         reports
@@ -441,11 +476,11 @@ app.post('/assist/thread/save', async (req, res) => {
 app.post('/licensing/issue', async (req, res) => {
   try {
     const op = 'ISSUE';
-    const prefix     = String(req.body?.prefix || '').trim().toUpperCase();
+    const prefix = String(req.body?.prefix || '').trim().toUpperCase();
     const clientName = String(req.body?.clientName || '').trim();
-    const expiryAt   = String(req.body?.expiryAt || '').trim();
-    const pipe       = String(req.body?.pipe || '').trim();
-    const allow      = String(req.body?.allow || '*').trim();
+    const expiryAt = String(req.body?.expiryAt || '').trim();
+    const pipe = String(req.body?.pipe || '').trim();
+    const allow = String(req.body?.allow || '*').trim();
 
     if (!prefix || !clientName || !expiryAt || !pipe) {
       return res.status(400).json({ status: 'bad-request' });
@@ -460,7 +495,7 @@ app.post('/licensing/issue', async (req, res) => {
       );
       const [rows] = await conn.query('SELECT @st AS st, @lic AS license, @id AS id');
       const out = rows?.[0] || {};
-      const st  = String(out.st || '').toLowerCase();
+      const st = String(out.st || '').toLowerCase();
 
       if (st && st !== 'ok') {
         return res.status(400).json({ status: st, license: out.license || null, id: out.id || null });
