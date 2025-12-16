@@ -63,7 +63,6 @@ export default function LoginPage() {
     const code = (license || "").trim().toUpperCase();
     if (!code) { setErrorKey("missing-license"); return; }
     setLoading(true);
-    console.log('[Login] Starting login for:', code);
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 15000);

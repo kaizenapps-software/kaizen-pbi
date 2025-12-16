@@ -72,11 +72,11 @@ app.use('/reports', rateLimit({
   legacyHeaders: false,
 }));
 
-app.use('/auth', createProxyMiddleware({
+app.use(['/auth', '/assist'], createProxyMiddleware({
   target: AUTH_SERVICE_URL,
   xfwd: true,
   changeOrigin: false,
-  pathRewrite: { '^/auth': '' },
+  pathRewrite: { '^/auth': '' }, // Note: /assist is NOT rewritten, passed as-is because auth-service has /assist routes
   logLevel: 'warn',
 }));
 
