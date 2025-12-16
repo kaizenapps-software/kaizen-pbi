@@ -18,9 +18,21 @@ const {
   DEBUG_AUTH,
 } = process.env
 
-const ssl = MYSQL_SSL_CA_PATH
-  ? { ca: fs.readFileSync(MYSQL_SSL_CA_PATH), rejectUnauthorized: String(MYSQL_SSL_REJECT_UNAUTHORIZED || 'true').toLowerCase() !== 'false' }
-  : undefined
+let ssl;
+if (MYSQL_SSL_CA_PATH) {
+  try {
+    ssl = {
+      ca: fs.readFileSync(MYSQL_SSL_CA_PATH),
+      rejectUnauthorized: String(MYSQL_SSL_REJECT_UNAUTHORIZED || 'true').toLowerCase() !== 'false'
+    };
+    console.log('[auth] Using SSL for MySQL connection');
+  } catch (err) {
+    console.warn('[auth] SSL certificate not found, connecting without SSL:', err.message);
+    ssl = undefined;
+  }
+} else {
+  console.log('[auth] No SSL certificate configured, connecting without SSL');
+}
 
 const pool = createPool({
   host: MYSQL_HOST,
@@ -31,7 +43,13 @@ const pool = createPool({
   connectionLimit: 8,
   namedPlaceholders: true,
   ...(ssl ? { ssl } : {}),
-})
+});
+
+console.log('[auth] Database pool created, testing connection...');
+pool.query('SELECT 1 AS test')
+  .then(() => console.log('[auth] Database connection successful'))
+  .catch(err => console.error('[auth] Database connection FAILED:', err.message));
+
 
 const RAW_PEP = AUTH_PEPPER || ''
 const PEP = RAW_PEP.trim().replace(/["']/g, '').replace(/[\r\n\t\u200B-\u200D\uFEFF]/g, '')
