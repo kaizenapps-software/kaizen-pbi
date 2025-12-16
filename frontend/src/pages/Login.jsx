@@ -34,7 +34,7 @@ export default function LoginPage() {
   useEffect(() => {
     initTheme();
     inputRef.current?.focus();
-    try { sessionStorage.removeItem(AUTH_KEY); localStorage.removeItem(AUTH_KEY); } catch {}
+    try { sessionStorage.removeItem(AUTH_KEY); localStorage.removeItem(AUTH_KEY); } catch { }
   }, []);
 
   const errorText = useMemo(() => {
@@ -51,7 +51,7 @@ export default function LoginPage() {
       if (re.test(raw) && raw.length - len >= 16) { prefix = raw.slice(0, len); break; }
     }
     const rest = (prefix ? raw.slice(prefix.length) : raw).slice(0, 16);
-    const g = [rest.slice(0,4), rest.slice(4,8), rest.slice(8,12), rest.slice(12,16)].filter(Boolean).join("-");
+    const g = [rest.slice(0, 4), rest.slice(4, 8), rest.slice(8, 12), rest.slice(12, 16)].filter(Boolean).join("-");
     e.preventDefault();
     setLicense(prefix ? `${prefix}-${g}` : g);
   };
@@ -63,46 +63,77 @@ export default function LoginPage() {
     const code = (license || "").trim().toUpperCase();
     if (!code) { setErrorKey("missing-license"); return; }
     setLoading(true);
+    console.log('[Login] Starting login for:', code);
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout check
+
       const r = await fetch(apiUrl("/auth/login"), {
         method: "POST",
         headers: jsonHeaders,
         credentials: "include",
         body: JSON.stringify({ license: code }),
+        signal: controller.signal
       });
+      clearTimeout(timeoutId);
+
+      console.log('[Login] Response status:', r.status);
+
       if (r.ok) {
         const j = await r.json().catch(() => null);
+        console.log('[Login] Success payload:', j);
         const client = j?.prefix || (code.match(/^[A-Z]{2,6}(?=-)/) || [null])[0];
+
         try {
           sessionStorage.setItem("kaizen.license", code);
           sessionStorage.setItem("kaizen.prefix", client || "");
-          const r2 = await fetch(apiUrl(`/reports/client-info?prefix=${client}`), { credentials: "include" });
+
+          console.log('[Login] Fetching client info for:', client);
+          // Short timeout for metadata fetch
+          const ctrl2 = new AbortController();
+          const to2 = setTimeout(() => ctrl2.abort(), 5000);
+
+          const r2 = await fetch(apiUrl(`/reports/client-info?prefix=${client}`), {
+            credentials: "include",
+            signal: ctrl2.signal
+          });
+          clearTimeout(to2);
+
           const info = await r2.json().catch(() => null);
+          console.log('[Login] Client info:', info);
+
           if (r2.ok && info?.client) {
             sessionStorage.setItem("kaizen.clientName", info.client.name || client || "");
             if (info.defaultReportCode) sessionStorage.setItem("kaizen.reportCode", info.defaultReportCode);
           } else {
             sessionStorage.setItem("kaizen.clientName", client || "");
           }
-        } catch {}
+        } catch (err) {
+          console.warn('[Login] Metadata fetch failed:', err);
+        }
+
         const exp = Date.now() + DEFAULT_TTL_MS;
-        try { sessionStorage.setItem("kz-auth", JSON.stringify({ license: code, client, exp })); localStorage.removeItem("kz-auth"); } catch {}
+        try { sessionStorage.setItem("kz-auth", JSON.stringify({ license: code, client, exp })); localStorage.removeItem("kz-auth"); } catch { }
+
         setSuccess(true);
         navigate("/dashboard", { replace: true });
         return;
       }
+
       let err = "server-error";
       try {
         const j = await r.json();
+        console.warn('[Login] Error payload:', j);
         const s = j?.status || j?.error;
         if (s === "expired") err = "license-expired";
         else if (s === "revoked") err = "license-not-active";
         else if (s === "mismatch_or_not_found") err = "invalid-license";
         else if (typeof s === "string") err = s;
-      } catch {}
+      } catch { }
       setErrorKey(err);
-    } catch {
-      setErrorKey("server-error");
+    } catch (e) {
+      console.error('[Login] Exception:', e);
+      setErrorKey(e.name === 'AbortError' ? 'server-error' : 'server-error');
     } finally {
       setLoading(false);
     }
