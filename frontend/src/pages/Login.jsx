@@ -76,11 +76,8 @@ export default function LoginPage() {
       });
       clearTimeout(timeoutId);
 
-      console.log('[Login] Response status:', r.status);
-
       if (r.ok) {
         const j = await r.json().catch(() => null);
-        console.log('[Login] Success payload:', j);
         const client = j?.prefix || (code.match(/^[A-Z]{2,6}(?=-)/) || [null])[0];
 
         try {
@@ -98,7 +95,6 @@ export default function LoginPage() {
           clearTimeout(to2);
 
           const info = await r2.json().catch(() => null);
-          console.log('[Login] Client info:', info);
 
           if (r2.ok && info?.client) {
             sessionStorage.setItem("kaizen.clientName", info.client.name || client || "");

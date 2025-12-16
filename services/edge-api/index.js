@@ -126,6 +126,9 @@ app.get('/health', (req, res) => {
   });
 });
 
+app.get('/', (req, res) => res.send('OK'));
+app.head('/', (req, res) => res.status(200).end());
+
 app.use((req, _res, next) => {
   console.warn('[edge] no match ->', req.method, req.originalUrl);
   next();
