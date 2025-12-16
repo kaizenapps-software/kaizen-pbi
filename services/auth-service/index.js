@@ -115,11 +115,13 @@ async function loginHandler(req, res) {
     if (DEBUG_AUTH === '1') console.log('[auth] /auth/login canon=', canon, 'hash=', licenseHash)
 
     const conn = await pool.getConnection()
+    console.log('[auth] DB Connection acquired');
     try {
       const xff = (req.headers['x-forwarded-for'] || '').toString()
       const ip = (xff.split(',')[0] || req.socket?.remoteAddress || req.ip || '').toString().slice(0, 45)
       const ua = (req.headers['user-agent'] || '').toString().slice(0, 255)
 
+      console.log('[auth] Querying daDashboard for hash:', licenseHash.substring(0, 10) + '...');
       const [rows] = await conn.query(
         `SELECT LicenseID, daClientPrefix, daStatus, daExpiryDate,
                 (daExpiryDate < UTC_TIMESTAMP()) AS isExpired
@@ -129,6 +131,7 @@ async function loginHandler(req, res) {
           LIMIT 1`,
         [licenseHash]
       )
+      console.log('[auth] daDashboard query returned rows:', rows?.length || 0);
 
       const found = rows?.[0]
       let status = 'mismatch_or_not_found'
@@ -144,16 +147,22 @@ async function loginHandler(req, res) {
           status = 'ok'
         }
       }
+      console.log('[auth] License status determined:', status);
 
       if (status === 'ok') {
+        console.log('[auth] Calling spLoginAuditLock (success)...');
         await spLoginAuditLock(conn, { prefix, licenseId: licId, ok: 1, reason: 'ok', ip, ua })
+        console.log('[auth] Audit lock complete. Sending response.');
         return res.json({ status: 'ok', prefix })
       } else {
+        console.log('[auth] Calling spLoginAuditLock (failure)...');
         const audit = await spLoginAuditLock(conn, { prefix, licenseId: licId, ok: 0, reason: status, ip, ua })
+        console.log('[auth] Audit lock complete. Sending failure response.');
         if (audit.locked) return res.status(429).json({ status: 'rate-limited', error: 'rate-limited', until: audit.until })
         return res.status(401).json({ status, error: status })
       }
     } finally {
+      console.log('[auth] Releasing DB connection');
       conn.release()
     }
   } catch (e) {
