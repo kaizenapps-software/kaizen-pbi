@@ -26,7 +26,9 @@ app.use(compression({
 }));
 
 // Parse JSON request bodies
-app.use(express.json());
+// Parse JSON request bodies - REMOVED: This consumes the stream and breaks the proxy!
+// The downstream services (auth-service) will handle parsing.
+// app.use(express.json());
 
 app.disable('x-powered-by');
 app.set('trust proxy', ['loopback', 'linklocal', 'uniquelocal']);
