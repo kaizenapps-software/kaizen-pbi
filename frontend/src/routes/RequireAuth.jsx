@@ -4,14 +4,13 @@ import { apiUrl } from "../lib/api";
 
 const KEY = "kz-auth";
 
-/* ========= store helpers ========= */
 function readAuth() {
   try {
     const raw = sessionStorage.getItem(KEY) || localStorage.getItem(KEY);
     if (!raw) return null;
     const a = JSON.parse(raw);
     if (!a?.license) return null;
-    if (a.exp && Date.now() > a.exp) return null; 
+    if (a.exp && Date.now() > a.exp) return null;
     return a;
   } catch {
     return null;
@@ -22,17 +21,16 @@ function writeAuth(data) {
   try {
     sessionStorage.setItem(KEY, JSON.stringify(data));
     localStorage.removeItem(KEY);
-  } catch {}
+  } catch { }
 }
 
 function clearAuth() {
   try {
     sessionStorage.removeItem(KEY);
     localStorage.removeItem(KEY);
-  } catch {}
+  } catch { }
 }
 
-/* ========= guard ========= */
 export default function RequireAuth({ children }) {
   const loc = useLocation();
   const nav = useNavigate();
@@ -51,7 +49,7 @@ export default function RequireAuth({ children }) {
       if (!shouldPing) return;
 
       try {
-         const r = await fetch(apiUrl("/auth/me"), { credentials: "include" });
+        const r = await fetch(apiUrl("/auth/me"), { credentials: "include" });
         if (!r.ok) throw new Error("no-session");
 
         const j = await r.json().catch(() => ({}));

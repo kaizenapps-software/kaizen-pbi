@@ -15,7 +15,6 @@ const PORT = Number(process.env.PORT || 3000);
 const AUTH_PORT = Number(process.env.AUTH_PORT || 4001);
 const FRONTEND = (process.env.CORS_ORIGIN || "")
   .split(",").map(s => s.trim()).filter(Boolean);
-// Only allow localhost in development
 if (process.env.NODE_ENV !== 'production') {
   if (!FRONTEND.includes("http://localhost:5173")) FRONTEND.push("http://localhost:5173");
   if (!FRONTEND.includes("http://localhost:3000")) FRONTEND.push("http://localhost:3000");

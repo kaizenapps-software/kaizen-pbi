@@ -66,7 +66,7 @@ export default function LoginPage() {
     console.log('[Login] Starting login for:', code);
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout check
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
 
       const r = await fetch(apiUrl("/auth/login"), {
         method: "POST",
@@ -89,7 +89,6 @@ export default function LoginPage() {
           sessionStorage.setItem("kaizen.prefix", client || "");
 
           console.log('[Login] Fetching client info for:', client);
-          // Short timeout for metadata fetch
           const ctrl2 = new AbortController();
           const to2 = setTimeout(() => ctrl2.abort(), 5000);
 
@@ -123,7 +122,6 @@ export default function LoginPage() {
       let err = "server-error";
       try {
         const j = await r.json();
-        console.warn('[Login] Error payload:', j);
         const s = j?.status || j?.error;
         if (s === "expired") err = "license-expired";
         else if (s === "revoked") err = "license-not-active";
@@ -132,7 +130,6 @@ export default function LoginPage() {
       } catch { }
       setErrorKey(err);
     } catch (e) {
-      console.error('[Login] Exception:', e);
       setErrorKey(e.name === 'AbortError' ? 'server-error' : 'server-error');
     } finally {
       setLoading(false);

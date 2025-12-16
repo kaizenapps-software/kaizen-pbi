@@ -15,20 +15,14 @@ const {
 
 const app = express();
 
-// Response compression (must be early in middleware chain)
 app.use(compression({
-  level: 6,           // Balance between speed and compression ratio
-  threshold: 1024,    // Only compress responses larger than 1KB
+  level: 6,
+  threshold: 1024,
   filter: (req, res) => {
     if (req.headers['x-no-compression']) return false;
     return compression.filter(req, res);
   }
 }));
-
-// Parse JSON request bodies
-// Parse JSON request bodies - REMOVED: This consumes the stream and breaks the proxy!
-// The downstream services (auth-service) will handle parsing.
-// app.use(express.json());
 
 app.disable('x-powered-by');
 app.set('trust proxy', ['loopback', 'linklocal', 'uniquelocal']);
@@ -36,7 +30,7 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'"], // unsafe-inline needed for Vite dev
+      scriptSrc: ["'self'", "'unsafe-inline'"],
       styleSrc: ["'self'", "'unsafe-inline'"],
       imgSrc: ["'self'", "data:", "https:"],
       connectSrc: ["'self'", "https://app.powerbi.com"],
@@ -52,7 +46,6 @@ app.use(helmet({
 app.use(morgan('tiny'));
 
 const allowList = CORS_ORIGIN.split(',').map(s => s.trim()).filter(Boolean);
-// Only allow localhost in development
 if (process.env.NODE_ENV !== 'production') {
   if (!allowList.includes('http://localhost:5173')) allowList.push('http://localhost:5173');
   if (!allowList.includes('http://localhost:3000')) allowList.push('http://localhost:3000');
@@ -72,10 +65,9 @@ app.use('/auth', rateLimit({
   legacyHeaders: false,
 }));
 
-// Rate limiting for reports endpoints
 app.use('/reports', rateLimit({
   windowMs: 60_000,
-  max: 30, // More restrictive for data endpoints
+  max: 30,
   standardHeaders: true,
   legacyHeaders: false,
 }));
@@ -126,7 +118,6 @@ app.get('/__diag/ping-options', async (_req, res) => {
   }
 });
 
-// Health check endpoint (must be before 404 handler)
 app.get('/health', (req, res) => {
   res.status(200).json({
     status: 'healthy',
