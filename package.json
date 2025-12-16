@@ -10,8 +10,8 @@
     "dev:web": "npm --prefix frontend run dev",
     "install:all": "npm --prefix services/auth-service install && npm --prefix services/edge-api install && npm --prefix frontend install",
     "build": "npm run install:all && npm --prefix frontend run build",
-    "start": "node start.js",
-    "start:concurrently": "concurrently -n AUTH,EDGE -c green,yellow \"cd services/auth-service && PORT=4001 node index.js\" \"cd services/edge-api && node index.js\"",
+    "start:services": "concurrently -n AUTH,EDGE -c green,yellow \"PORT=4001 npm --prefix services/auth-service start\" \"npm --prefix services/edge-api start\"",
+    "start": "PORT=4001 npm --prefix services/auth-service start & npm --prefix services/edge-api start",
     "start:bash": "bash start-backend.sh",
     "bootstrap": "npm --prefix services/auth-service ci --no-audit --no-fund && npm --prefix services/edge-api ci --no-audit --no-fund && npm --prefix frontend ci --no-audit --no-fund"
   },
