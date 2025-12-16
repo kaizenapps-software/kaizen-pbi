@@ -84,10 +84,6 @@ export default function LoginPage() {
           sessionStorage.setItem("kaizen.license", code);
           sessionStorage.setItem("kaizen.prefix", client || "");
 
-          console.log('[Login] Fetching client info for:', client);
-          const ctrl2 = new AbortController();
-          const to2 = setTimeout(() => ctrl2.abort(), 5000);
-
           const r2 = await fetch(apiUrl(`/reports/client-info?prefix=${client}`), {
             credentials: "include",
             signal: ctrl2.signal
@@ -103,7 +99,6 @@ export default function LoginPage() {
             sessionStorage.setItem("kaizen.clientName", client || "");
           }
         } catch (err) {
-          console.warn('[Login] Metadata fetch failed:', err);
         }
 
         const exp = Date.now() + DEFAULT_TTL_MS;

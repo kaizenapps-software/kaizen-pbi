@@ -40,7 +40,6 @@ export default function App() {
               <>
                 <AppShell />
                 <Chatbox
-                  apiBase=""
                   webBase="https://kaizenapps.net/gpt"
                   label="Asistente"
                   theme="dark"
