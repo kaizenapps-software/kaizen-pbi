@@ -76,8 +76,14 @@ app.use(['/auth', '/assist'], createProxyMiddleware({
   target: AUTH_SERVICE_URL,
   xfwd: true,
   changeOrigin: false,
-  pathRewrite: { '^/auth': '' }, // Note: /assist is NOT rewritten, passed as-is because auth-service has /assist routes
-  logLevel: 'warn',
+  pathRewrite: { '^/auth': '' },
+  logLevel: 'debug', // Changed to debug to see more
+  onProxyReq(proxyReq, req) {
+    console.log('[edge→auth]', req.method, req.originalUrl, '→', AUTH_SERVICE_URL + (req.originalUrl.startsWith('/auth') ? req.originalUrl.substring(5) : req.originalUrl));
+  },
+  onProxyRes(proxyRes, req) {
+    console.log('[auth→edge]', req.method, req.originalUrl, 'status=', proxyRes.statusCode);
+  },
 }));
 
 const reportsProxy = createProxyMiddleware({
