@@ -159,7 +159,7 @@ async function loginHandler(req, res) {
     console.error('[auth] /auth/login error:', {
       requestId,
       error: e?.sqlMessage || e?.message || String(e),
-      license: license ? `${license.substring(0, 10)}...` : 'none',
+      license: req.body?.license ? `${String(req.body.license).substring(0, 10)}...` : 'none',
       ip: (req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0]
     });
     return res.status(500).json({ status: 'server-error', error: 'An error occurred during login' })
